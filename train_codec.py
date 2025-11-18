@@ -291,6 +291,7 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=100)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--experiment_name", type=str, default="telucodec_h200")
+    parser.add_argument("--export_onnx", action="store_true", help="Export to ONNX after training")
     args = parser.parse_args()
     
     # Configuration for H200 training
