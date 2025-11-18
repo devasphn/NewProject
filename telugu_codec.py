@@ -96,14 +96,15 @@ class VectorQuantizer(nn.Module):
             quantized_step = F.embedding(indices, self.codebooks[q])
             quantized += quantized_step
             
-            # Commitment loss with clamping
-            commitment_loss = F.mse_loss(residual.detach(), quantized_step)
+            # Commitment loss - pull encoder output TO codebook (not backwards!)
+            # Gradient flows to encoder, not codebook
+            commitment_loss = F.mse_loss(residual, quantized_step.detach())
             commitment_loss = torch.clamp(commitment_loss, 0, 10.0)  # Prevent explosion
             losses.append(commitment_loss * self.commitment_weight)
             
-            # EMA codebook update (training only) - use quantized_step not residual
+            # EMA codebook update - track what encoder OUTPUTS (residual before quantization)
             if self.training:
-                self._update_codebook_ema(q, quantized_step.detach(), indices)
+                self._update_codebook_ema(q, residual.detach(), indices)
             
             # Update residual
             residual = residual - quantized_step.detach()
