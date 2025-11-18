@@ -262,8 +262,6 @@ def main(args):
                     "train/loss": output["loss"].item(),
                     "train/recon_loss": output["recon_loss"].item(),
                     "train/vq_loss": output["vq_loss"].item(),
-                    "train/spectral_loss": output["spectral_loss"].item(),
-                    "train/mel_loss": output["mel_loss"].item(),
                     "train/lr": scheduler.get_last_lr()[0]
                 })
         

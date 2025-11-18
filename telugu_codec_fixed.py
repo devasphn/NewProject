@@ -247,7 +247,7 @@ class TeluCodec(nn.Module):
         return audio
     
     def forward(self, audio: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """Full forward pass with losses"""
+        """Full forward pass with losses - SIMPLIFIED VERSION"""
         original_length = audio.shape[-1]
         
         # Encode
@@ -267,32 +267,19 @@ class TeluCodec(nn.Module):
                 padding = original_length - audio_recon.shape[-1]
                 audio_recon = F.pad(audio_recon, (0, padding))
         
-        # Loss functions (following EnCodec/DAC approach)
-        # 1. Reconstruction loss (L1 is standard for audio)
+        # SIMPLIFIED LOSS - Just L1 + VQ (no broken perceptual losses!)
+        # L1 directly penalizes amplitude mismatch
         recon_loss = F.l1_loss(audio_recon, audio)
         
-        # 2. Multi-scale spectral loss (critical for audio quality)
-        spectral_loss = self._multi_scale_spectral_loss(audio, audio_recon)
-        
-        # 3. Mel-spectrogram loss (perceptual quality)
-        mel_loss = self._mel_loss(audio, audio_recon)
-        
-        # Total loss with balanced weights (from EnCodec paper)
-        total_loss = (
-            1.0 * recon_loss +
-            1.0 * spectral_loss +
-            1.0 * mel_loss +
-            1.0 * vq_loss
-        )
+        # Total loss: simple and effective
+        total_loss = recon_loss + 1.0 * vq_loss
         
         return {
             "audio": audio_recon,
             "codes": codes,
             "loss": total_loss,
             "recon_loss": recon_loss,
-            "vq_loss": vq_loss,
-            "spectral_loss": spectral_loss,
-            "mel_loss": mel_loss
+            "vq_loss": vq_loss
         }
     
     def _multi_scale_spectral_loss(self, target: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
