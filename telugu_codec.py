@@ -226,13 +226,14 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality with tanh to match input range [-1, 1]
+        # Post-processing for audio quality - NO final tanh
+        # Input is clipped to [-1, 1], let decoder learn to match naturally
         self.post_net = nn.Sequential(
             nn.Conv1d(output_channels, 16, kernel_size=5, padding=2),
             nn.BatchNorm1d(16),
             nn.Tanh(),
-            nn.Conv1d(16, output_channels, kernel_size=5, padding=2),
-            nn.Tanh()  # Match input data range [-1, 1]
+            nn.Conv1d(16, output_channels, kernel_size=5, padding=2)
+            # NO final activation - decoder learns correct scale
         )
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
@@ -362,19 +363,18 @@ class TeluCodec(nn.Module):
         recon_loss = F.l1_loss(audio_recon, audio)
         recon_loss = torch.clamp(recon_loss, 0, 10.0)  # Prevent explosion
         
-        # MSE loss (stronger than L1 for waveform matching)
+        # MSE loss for stronger amplitude matching
         mse_loss = F.mse_loss(audio_recon, audio)
-        mse_loss = torch.clamp(mse_loss, 0, 10.0)
+        mse_loss = torch.clamp(mse_loss, 0, 1.0)  # Strong clamp to prevent explosion!
         
-        # Perceptual loss (multi-scale spectral) 
+        # Perceptual loss (multi-scale spectral) - very small weight
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
         
         # Clamp VQ loss
         vq_loss = torch.clamp(vq_loss, 0, 10.0)
         
-        # Simple total loss: L1 + MSE + perceptual + VQ
-        # MSE is key - it penalizes amplitude errors quadratically
-        total_loss = recon_loss + mse_loss + 0.1 * perceptual_loss + vq_loss
+        # Total loss: L1 + small MSE + tiny perceptual + VQ
+        total_loss = recon_loss + 0.5 * mse_loss + 0.01 * perceptual_loss + vq_loss
         
         # Store for monitoring
         scale_loss = torch.tensor(0.0, device=audio.device)
