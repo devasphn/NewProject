@@ -33,7 +33,7 @@ apex  # NVIDIA Apex for mixed precision
 triton==2.2.0  # For Flash Attention
 
 # Data Collection
-yt-dlp==2024.1.0
+yt-dlp>=2024.11.18  # Use latest stable version
 whisperx @ git+https://github.com/m-bain/whisperX.git
 pyannote.audio==3.1.1
 
