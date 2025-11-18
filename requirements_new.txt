@@ -5,10 +5,10 @@
 # CORE PACKAGES (Install first)
 # ============================================
 
-# PyTorch (already installed in RunPod)
-torch==2.2.0
-torchaudio==2.2.0
-torchvision==0.17.0
+# PyTorch (WhisperX needs 2.8.0+)
+torch>=2.8.0
+torchaudio>=2.8.0
+torchvision>=0.18.0
 
 # Transformers & NLP
 transformers==4.45.0
