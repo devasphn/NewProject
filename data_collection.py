@@ -37,6 +37,9 @@ class TeluguDataCollector:
     
     def __init__(self, config_path: str = "data_sources.yaml", output_dir: str = "telugu_data"):
         """Initialize the data collector"""
+        # Verify Node.js is installed
+        self._verify_nodejs()
+        
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -65,9 +68,23 @@ class TeluguDataCollector:
             "errors": []
         }
     
+    def _verify_nodejs(self):
+        """Verify Node.js is installed for yt-dlp"""
+        try:
+            result = subprocess.run(["node", "--version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                logger.info(f"✓ Node.js detected: {version}")
+            else:
+                logger.warning("⚠ Node.js not found - downloads may fail")
+                logger.warning("Install with: curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs")
+        except FileNotFoundError:
+            logger.warning("⚠ Node.js not found - downloads may fail")
+            logger.warning("Install with: curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs")
+    
     def download_youtube_content(self, url: str, output_name: str, 
                                 max_duration: int = 7200) -> Optional[Path]:
-        """Download audio from YouTube using yt-dlp"""
+        """Download audio from YouTube using yt-dlp with Node.js runtime"""
         try:
             # Create output directory for this source
             source_dir = self.raw_dir / output_name
@@ -80,41 +97,49 @@ class TeluguDataCollector:
                 url = url.rstrip("/") + "/videos"
             
             # Download latest videos from channel (max 10 videos, max 2 hours each)
+            # With Node.js installed, we can use default extractor for better quality
             cmd = [
                 "yt-dlp",
-                "-x",
+                "-f", "bestaudio",  # Best audio quality
+                "-x",  # Extract audio
                 "--audio-format", "wav",
-                "--audio-quality", "0",
+                "--audio-quality", "0",  # Best quality
                 "-o", str(source_dir / "%(title)s.%(ext)s"),
                 "--max-downloads", "10",
-                "--match-filter", f"duration < {max_duration}",
                 "--playlist-end", "10",
+                "--match-filter", f"duration < {max_duration} & duration > 60",  # 1min to 2hr
                 "--no-check-certificate",
-                "--extractor-args", "youtube:player_client=android",
+                "--ignore-errors",  # Continue on errors
+                "--no-warnings",
+                "--progress",  # Show progress
                 url
             ]
             
-            logger.info(f"Running: yt-dlp with Android client (no JS needed)...")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            logger.info(f"Running: yt-dlp (with Node.js runtime)...")
+            logger.info(f"Target: {url}")
             
-            if result.returncode == 0:
-                # Check if any files were downloaded
-                downloaded_files = list(source_dir.glob("*.wav"))
-                if downloaded_files:
-                    logger.info(f"✓ Downloaded {len(downloaded_files)} files for {output_name}")
-                    return source_dir
-                else:
-                    logger.warning(f"No files downloaded for {output_name}")
-                    logger.warning(f"stdout: {result.stdout[:300]}")
-                    return None
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            
+            # Check if any files were downloaded
+            downloaded_files = list(source_dir.glob("*.wav"))
+            
+            if downloaded_files:
+                total_size = sum(f.stat().st_size for f in downloaded_files) / (1024**3)  # GB
+                logger.info(f"✓ Downloaded {len(downloaded_files)} files for {output_name} ({total_size:.2f} GB)")
+                return source_dir
             else:
-                logger.error(f"yt-dlp failed for {url}")
-                logger.error(f"stderr: {result.stderr[:500]}")
-                logger.error(f"stdout: {result.stdout[:300]}")
+                logger.warning(f"No files downloaded for {output_name}")
+                if result.stderr:
+                    logger.warning(f"stderr: {result.stderr[:500]}")
+                if result.stdout:
+                    logger.warning(f"stdout: {result.stdout[:500]}")
                 return None
                 
+        except subprocess.TimeoutExpired:
+            logger.error(f"Download timeout for {url} (>10 minutes)")
+            return None
         except Exception as e:
-            logger.error(f"Download error: {e}")
+            logger.error(f"Download error for {output_name}: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return None
