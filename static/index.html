@@ -256,16 +256,30 @@
                 // Speech detected
                 isSpeaking = true;
                 silenceCount = 0;
-                audioBuffer.push(...audioData);
+                // Append audio data without spread operator to avoid stack overflow
+                for (let i = 0; i < audioData.length; i++) {
+                    audioBuffer.push(audioData[i]);
+                }
             } else {
                 // Silence detected
                 if (isSpeaking) {
                     silenceCount++;
-                    audioBuffer.push(...audioData);
+                    // Append audio data
+                    for (let i = 0; i < audioData.length; i++) {
+                        audioBuffer.push(audioData[i]);
+                    }
                     
                     // After silence duration, send accumulated audio
                     if (silenceCount >= SILENCE_DURATION && audioBuffer.length >= MIN_AUDIO_LENGTH) {
+                        console.log(`Speech detected! Sending ${audioBuffer.length} samples (${(audioBuffer.length/16000).toFixed(2)}s)`);
                         sendAudio(new Float32Array(audioBuffer));
+                        audioBuffer = [];
+                        isSpeaking = false;
+                        silenceCount = 0;
+                    }
+                    // Prevent buffer from growing too large
+                    if (audioBuffer.length > 160000) { // 10 seconds max
+                        console.log('Buffer too large, resetting');
                         audioBuffer = [];
                         isSpeaking = false;
                         silenceCount = 0;
@@ -277,7 +291,14 @@
         function sendAudio(audioData) {
             const buffer = new Float32Array(audioData);
             const bytes = new Uint8Array(buffer.buffer);
-            const binary = String.fromCharCode(...bytes);
+            
+            // Convert bytes to binary string in chunks to avoid stack overflow
+            let binary = '';
+            const chunkSize = 8192;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                const chunk = bytes.slice(i, i + chunkSize);
+                binary += String.fromCharCode.apply(null, chunk);
+            }
             const base64 = btoa(binary);
 
             console.log(`Sending ${audioData.length} samples (${(audioData.length/16000).toFixed(2)}s)`);
