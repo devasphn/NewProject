@@ -232,14 +232,11 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality (no activation here!)
+        # Post-processing for audio quality
+        # NO activation function - modern codecs (EnCodec, DAC) use unbounded output
         self.post_net = nn.Sequential(
             nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3)
         )
-        
-        # Learnable output scale - initialize to 1.0 for stability
-        # Will gradually learn correct amplitude
-        self.output_scale = nn.Parameter(torch.tensor([1.0]))
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         """
@@ -261,10 +258,9 @@ class TeluguDecoder(nn.Module):
         # Post-processing for quality
         audio = self.post_net(x)
         
-        # Apply scale THEN soft clip with tanh
-        # This allows scale > 1.0 to push into tanh's sensitive region
-        audio = audio * self.output_scale
-        audio = torch.tanh(audio)  # Soft bound to [-1, 1]
+        # NO activation - let network learn unbounded output
+        # Input is clipped to [-1, 1], network will learn to match
+        # This is how EnCodec, DAC, SoundStream work
         
         return audio
 
