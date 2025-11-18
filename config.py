@@ -30,8 +30,8 @@ FP16 = True
 
 # Inference Configuration
 ASR_LANGUAGE = "en"  # English (change to "te" for Telugu after training)
-MAX_NEW_TOKENS = 50
-TEMPERATURE = 0.7
+MAX_NEW_TOKENS = 30  # Shorter for faster response
+TEMPERATURE = 0.8
 TOP_P = 0.9
 
 # Audio Configuration

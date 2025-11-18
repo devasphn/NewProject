@@ -189,6 +189,7 @@
         const SILENCE_THRESHOLD = 0.01;  // Amplitude threshold
         const SILENCE_DURATION = 10;      // Chunks of silence before sending
         const MIN_AUDIO_LENGTH = 16000;   // Minimum 1 second of audio
+        let currentAudioSource = null;    // Track current playing audio
 
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -332,6 +333,16 @@
 
         async function playAudio(base64Audio) {
             try {
+                // Stop any currently playing audio
+                if (currentAudioSource) {
+                    try {
+                        currentAudioSource.stop();
+                    } catch (e) {
+                        // Already stopped
+                    }
+                    currentAudioSource = null;
+                }
+                
                 const binaryString = atob(base64Audio);
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) {
@@ -339,19 +350,37 @@
                 }
                 
                 const float32Array = new Float32Array(bytes.buffer);
-                const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
-                audioBuffer.getChannelData(0).set(float32Array);
+                const playbackBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
+                playbackBuffer.getChannelData(0).set(float32Array);
                 
                 const source = audioContext.createBufferSource();
-                source.buffer = audioBuffer;
+                source.buffer = playbackBuffer;
                 source.connect(audioContext.destination);
+                
+                // Track current source and clear when done
+                currentAudioSource = source;
+                source.onended = () => {
+                    currentAudioSource = null;
+                };
+                
                 source.start();
+                console.log(`Playing audio: ${float32Array.length} samples (${(float32Array.length/16000).toFixed(2)}s)`);
             } catch (error) {
                 console.error('Failed to play audio:', error);
             }
         }
 
         function stop() {
+            // Stop current audio playback
+            if (currentAudioSource) {
+                try {
+                    currentAudioSource.stop();
+                } catch (e) {
+                    // Already stopped
+                }
+                currentAudioSource = null;
+            }
+            
             if (processor) processor.disconnect();
             if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
             if (ws) ws.close();

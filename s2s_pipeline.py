@@ -125,51 +125,62 @@ class TeluguS2SPipeline:
         """Generate conversational response"""
         start_time = time.time()
         
-        # Conversational prompt - respond naturally to user input
-        prompt = f"""You are a helpful voice assistant. Respond briefly and naturally to what the user says.
+        # Human-like conversational prompt
+        prompt = f"""You are a friendly human having a natural conversation. Respond warmly and briefly like you're talking to a friend.
 
 User: {text}
-Assistant:"""
+You:"""
         
         inputs = self.llm_tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
         
         outputs = self.llm.generate(
             inputs,
-            max_new_tokens=MAX_NEW_TOKENS,
-            temperature=TEMPERATURE,
+            max_new_tokens=30,  # Shorter for faster response
+            temperature=0.8,    # More natural variation
             do_sample=True,
-            top_p=TOP_P,
+            top_p=0.9,
             pad_token_id=self.llm_tokenizer.eos_token_id,
-            repetition_penalty=1.2
+            repetition_penalty=1.3
         )
         
         response = self.llm_tokenizer.decode(outputs[0], skip_special_tokens=True)
         
-        # Extract only the assistant's response
-        if "Assistant:" in response:
-            response = response.split("Assistant:")[-1].strip()
+        # Extract only the response
+        if "You:" in response:
+            response = response.split("You:")[-1].strip()
         
         # Clean up
         response = response.replace("User:", "").strip()
+        if not response:
+            response = "I'm here to help!"
         
         latency_ms = int((time.time() - start_time) * 1000)
         return response, latency_ms
     
     @torch.no_grad()
-    def text_to_speech(self, text, speaker_id=0):
-        """Convert text to speech (TTS)"""
+    def text_to_speech(self, text, speaker_id=2):
+        """Convert text to speech (TTS) - Optimized for low latency"""
         start_time = time.time()
         
-        # Use specified speaker embedding
+        # Use better speaker (2 or 3 for clearer, younger voice)
         speaker_id = min(speaker_id, len(self.speaker_embeddings) - 1)
-        speaker_embedding = self.speaker_embeddings[speaker_id]
+        speaker_embedding = self.speaker_embeddings[speaker_id].to(self.device)
+        
+        # Limit text length for faster generation
+        if len(text) > 200:
+            text = text[:200]
         
         inputs = self.tts_processor(text=text, return_tensors="pt")
+        input_ids = inputs["input_ids"].to(self.device)
         
+        # Optimized generation
         speech = self.tts_model.generate_speech(
-            inputs["input_ids"].to(self.device),
+            input_ids,
             speaker_embedding,
-            vocoder=self.vocoder
+            vocoder=self.vocoder,
+            minlenratio=0.0,     # No minimum length requirement
+            maxlenratio=20.0,    # Reasonable max length
+            threshold=0.5        # Early stopping threshold
         )
         
         latency_ms = int((time.time() - start_time) * 1000)
