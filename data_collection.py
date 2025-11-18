@@ -8,6 +8,7 @@ import os
 import json
 import subprocess
 import logging
+import argparse
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 import yaml
@@ -220,6 +221,25 @@ class TeluguDataCollector:
         logger.info(f"Total segments: {self.stats['total_segments']}")
 
 if __name__ == "__main__":
-    collector = TeluguDataCollector()
+    parser = argparse.ArgumentParser(description='Telugu Data Collection Pipeline')
+    parser.add_argument('--data_dir', type=str, default='telugu_data',
+                       help='Output directory for collected data')
+    parser.add_argument('--config', type=str, default='data_sources.yaml',
+                       help='Path to data sources configuration file')
+    parser.add_argument('--max_hours', type=int, default=100,
+                       help='Maximum hours to collect')
+    parser.add_argument('--quality', type=str, default='high',
+                       choices=['low', 'medium', 'high'],
+                       help='Audio quality setting')
+    
+    args = parser.parse_args()
+    
+    logger.info(f"Starting data collection with:")
+    logger.info(f"  Data directory: {args.data_dir}")
+    logger.info(f"  Config file: {args.config}")
+    logger.info(f"  Max hours: {args.max_hours}")
+    logger.info(f"  Quality: {args.quality}")
+    
+    collector = TeluguDataCollector(config_path=args.config, output_dir=args.data_dir)
     collector.collect_priority_sources()
     collector.generate_report()
