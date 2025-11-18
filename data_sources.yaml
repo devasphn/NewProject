@@ -1,0 +1,150 @@
+# Telugu Data Sources for S2S Training
+# Target: 100+ hours of high-quality Telugu speech
+
+primary_sources:
+  # High-quality podcasts with clear speech (Priority 1)
+  raw_talks_vk:
+    channel_name: "Raw Talks with VK"
+    channel_url: "https://www.youtube.com/@RawTalks"
+    playlist_url: "https://www.youtube.com/playlist?list=PLKdv9M1lZ40csEVtFvIzWn8Yp3-nfXiWe"
+    content_type: "Long-form podcasts (1.5-2 hours)"
+    audio_quality: "Professional (wireless collar mics, audio mixers)"
+    estimated_hours: 50+
+    priority: 1
+    notable_episodes:
+      - "Devi Sri Prasad Interview (1h 50m)"
+      - "Crisna Chaitanya - Feminism & Motivation"
+      - "Business & Psychology discussions"
+  
+  # 24/7 News channels (Priority 1)
+  news_channels:
+    - name: "10TV Telugu"
+      url: "https://www.youtube.com/@10TVNewsTeluguLive"
+      type: "24/7 news broadcasting"
+      quality: "Broadcast standard"
+      estimated_hours: 500+
+      
+    - name: "Sakshi TV"
+      url: "https://www.youtube.com/@SakshiTVLive"
+      type: "24/7 news"
+      quality: "Professional broadcast"
+      estimated_hours: 500+
+      
+    - name: "NTV Telugu"
+      url: "https://www.youtube.com/@NTVTeluguLive"
+      type: "24/7 news & interviews"
+      quality: "Broadcast quality"
+      estimated_hours: 500+
+      
+    - name: "HMTV Telugu News"
+      url: "https://www.youtube.com/@hmtvlive"
+      type: "24/7 Hyderabad news"
+      quality: "Professional"
+      estimated_hours: 500+
+      
+    - name: "ETV Andhra Pradesh"
+      url: "https://www.youtube.com/@ETVAndhraPradesh"
+      type: "Regional news"
+      quality: "Broadcast standard"
+      estimated_hours: 300+
+
+secondary_sources:
+  # Telugu Audiobooks (Priority 2)
+  audiobooks:
+    - name: "Telugu Audio Books"
+      url: "https://www.youtube.com/@TeluguAudioBooks1"
+      type: "Literary narration"
+      quality: "Clear narration"
+      estimated_hours: 100+
+      
+    - name: "Voice of Telugu"
+      url: "https://www.youtube.com/@VoiceOfTeluguofficial"
+      type: "Cultural content"
+      quality: "Good"
+      estimated_hours: 50+
+  
+  # Educational content (Priority 2)
+  educational:
+    - name: "Telugu Connects"
+      url: "https://www.youtube.com/@TeluguConnects_"
+      type: "Growth & educational"
+      quality: "Good"
+      estimated_hours: 30+
+      
+    - name: "Rythu Badi"
+      type: "Agricultural education"
+      quality: "Variable"
+      estimated_hours: 50+
+
+# Comedy & Entertainment (Priority 3 - for emotional expressions)
+entertainment:
+  - name: "ThyGap Podcast"
+    spotify: "https://open.spotify.com/show/22cPpqkXAPYTSdKwIfifms"
+    apple: "https://podcasts.apple.com/us/podcast/thygap-podcast-telugu/id1582609415"
+    type: "Comedy podcast"
+    quality: "Good"
+    estimated_hours: 20+
+    notes: "Natural laughter, casual conversation"
+
+# Spotify-exclusive podcasts
+spotify_podcasts:
+  - name: "Growth With VRK"
+    url: "https://open.spotify.com/show/2Cvz1mG6o0vRNR8AonLrBE"
+    type: "Personal development"
+    
+  - name: "Telugu Motivational Talks"
+    url: "https://open.spotify.com/show/2aLZrbrSEJbqYONSk9BWh0"
+    type: "Motivational content"
+
+# Data Collection Strategy
+collection_strategy:
+  phase_1_priority:
+    # Week 1: Collect highest quality sources
+    - raw_talks_vk: "All episodes (50+ hours)"
+    - news_segments: "Prime time news from each channel (20 hours)"
+    - audiobooks: "Clear narration samples (10 hours)"
+    total_target: "80 hours"
+    
+  phase_2_expansion:
+    # Week 2: Add diversity
+    - comedy_content: "Natural emotions (10 hours)"
+    - interviews: "Various speakers (20 hours)"
+    - educational: "Domain-specific vocabulary (10 hours)"
+    total_target: "40 hours"
+    
+  quality_requirements:
+    min_bitrate: "128 kbps"
+    sample_rate: "16000 Hz"
+    format: "wav or flac preferred"
+    segment_length: "10-30 seconds"
+    silence_removal: true
+    noise_threshold: "-40 dB"
+
+# Emotion Mapping
+emotion_sources:
+  laughter:
+    - "ThyGap Podcast (comedy)"
+    - "Entertainment interviews"
+  excitement:
+    - "Sports news segments"
+    - "Movie promotions"
+  empathy:
+    - "Human interest stories"
+    - "Interview emotional moments"
+  professional:
+    - "News anchoring"
+    - "Business discussions"
+
+# Speaker Diversity
+speaker_profiles:
+  male_young: "Raw Talks host, young reporters"
+  male_mature: "Senior news anchors, narrators"
+  female_young: "Young anchors, podcast guests"
+  female_professional: "Prime time news anchors"
+
+# Legal & Ethical Notes
+usage_notes:
+  - "All content from public broadcasts"
+  - "Educational and research purposes"
+  - "No commercial redistribution of original content"
+  - "Model training only, not content reproduction"
