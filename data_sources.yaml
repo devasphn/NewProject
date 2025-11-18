@@ -5,7 +5,7 @@ primary_sources:
   # High-quality podcasts with clear speech (Priority 1)
   raw_talks_vk:
     channel_name: "Raw Talks with VK"
-    channel_url: "https://www.youtube.com/@RawTalks"
+    channel_url: "https://www.youtube.com/@RawTalksWithVK"
     playlist_url: "https://www.youtube.com/playlist?list=PLKdv9M1lZ40csEVtFvIzWn8Yp3-nfXiWe"
     content_type: "Long-form podcasts (1.5-2 hours)"
     audio_quality: "Professional (wireless collar mics, audio mixers)"
@@ -19,15 +19,21 @@ primary_sources:
   # 24/7 News channels (Priority 1)
   news_channels:
     - name: "10TV Telugu"
-      url: "https://www.youtube.com/@10TVNewsTeluguLive"
+      url: "https://www.youtube.com/@10TVNewsTelugu"
       type: "24/7 news broadcasting"
       quality: "Broadcast standard"
       estimated_hours: 500+
       
     - name: "Sakshi TV"
-      url: "https://www.youtube.com/@SakshiTVLive"
+      url: "https://www.youtube.com/@SakshiTV"
       type: "24/7 news"
       quality: "Professional broadcast"
+      estimated_hours: 500+
+      
+    - name: "TV9 Telugu"
+      url: "https://www.youtube.com/@TV9Telugu"
+      type: "24/7 news"
+      quality: "Broadcast quality"
       estimated_hours: 500+
       
     - name: "NTV Telugu"
