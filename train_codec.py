@@ -281,9 +281,13 @@ class CodecTrainer:
                 
             snr = 10 * torch.log10(signal_power / noise_power)
             
+            # Get output_scale parameter value for monitoring
+            output_scale_value = self.model.decoder.output_scale.item()
+            
             logger.info(f"\n=== VALIDATION SNR DEBUG ===")
             logger.info(f"Input  range: [{audio_min:.6f}, {audio_max:.6f}], mean={audio_mean:.6f}, std={audio_std:.6f}")
             logger.info(f"Output range: [{output_min:.6f}, {output_max:.6f}], mean={output_mean:.6f}, std={output_std:.6f}")
+            logger.info(f"Output scale param: {output_scale_value:.4f} (should increase to fix amplitude)")
             logger.info(f"Range ratio: {(output_max - output_min) / (audio_max - audio_min + 1e-8):.3f} (should be ~1.0)")
             logger.info(f"RMS ratio: {output_std / (audio_std + 1e-8):.3f} (should be ~1.0)")
             logger.info(f"Signal power: {signal_power:.8f}")
@@ -300,6 +304,7 @@ class CodecTrainer:
             wandb.log({
                 "val/loss": avg_loss,
                 "val/snr": avg_snr,
+                "decoder/output_scale": self.model.decoder.output_scale.item(),
                 "epoch": epoch
             })
         

@@ -374,19 +374,20 @@ class TeluCodec(nn.Module):
         mse_loss = F.mse_loss(audio_recon, audio)
         recon_loss = l1_loss + mse_loss
         
-        # Scale loss: Explicitly guide amplitude matching (RMS ratio)
-        input_rms = torch.sqrt((audio ** 2).mean() + 1e-8)
-        output_rms = torch.sqrt((audio_recon ** 2).mean() + 1e-8)
+        # Scale loss: Per-sample RMS for stronger gradients
+        # Compute RMS per sample in batch, then average
+        input_rms = torch.sqrt((audio ** 2).mean(dim=[1, 2], keepdim=True) + 1e-8)
+        output_rms = torch.sqrt((audio_recon ** 2).mean(dim=[1, 2], keepdim=True) + 1e-8)
         scale_loss = F.mse_loss(output_rms, input_rms)
         
         # Perceptual loss (multi-scale spectral) - keep in float32
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
         
-        # Balanced total loss - VQ needs stronger signal
+        # Balanced total loss with STRONG scale emphasis
         total_loss = (
-            1.0 * recon_loss +       # Main reconstruction
-            1.0 * scale_loss +        # Amplitude matching (equal weight!)
-            0.01 * perceptual_loss +  # Perceptual (small weight to avoid explosion)
+            1.0 * recon_loss +        # Main reconstruction
+            15.0 * scale_loss +       # CRITICAL: Strong amplitude matching!
+            0.01 * perceptual_loss +  # Perceptual (small weight)
             5.0 * vq_loss             # VQ strong signal
         )
         
