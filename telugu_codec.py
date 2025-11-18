@@ -362,14 +362,26 @@ class TeluCodec(nn.Module):
         recon_loss = F.l1_loss(audio_recon, audio)
         recon_loss = torch.clamp(recon_loss, 0, 10.0)  # Prevent explosion
         
-        # Perceptual loss (multi-scale spectral)
-        perceptual_loss = self._perceptual_loss(audio, audio_recon)
+        # CRITICAL: Amplitude/Scale matching loss
+        # Force decoder to match input magnitude (not just shape)
+        input_rms = torch.sqrt((audio ** 2).mean(dim=-1, keepdim=True) + 1e-8)
+        output_rms = torch.sqrt((audio_recon ** 2).mean(dim=-1, keepdim=True) + 1e-8)
+        scale_loss = F.mse_loss(output_rms, input_rms) * 10.0  # Strong weight!
+        
+        # Also match absolute max values
+        input_max = audio.abs().max(dim=-1, keepdim=True)[0]
+        output_max = audio_recon.abs().max(dim=-1, keepdim=True)[0]
+        max_loss = F.mse_loss(output_max, input_max) * 5.0
+        
+        # Perceptual loss (multi-scale spectral) - REMOVED during early training
+        # perceptual_loss = self._perceptual_loss(audio, audio_recon)
+        perceptual_loss = torch.tensor(0.0, device=audio.device)  # Disabled!
         
         # Clamp VQ loss
         vq_loss = torch.clamp(vq_loss, 0, 10.0)
         
-        # Total loss with safeguards - reduced perceptual weight for better balance
-        total_loss = recon_loss + vq_loss + 0.01 * perceptual_loss  # Changed from 0.1 to 0.01
+        # Total loss: recon + scale matching + max matching + VQ
+        total_loss = recon_loss + scale_loss + max_loss + vq_loss
         
         # Final NaN check
         if torch.isnan(total_loss) or torch.isinf(total_loss):
@@ -382,7 +394,9 @@ class TeluCodec(nn.Module):
             "loss": total_loss,
             "recon_loss": recon_loss,
             "vq_loss": vq_loss,
-            "perceptual_loss": perceptual_loss
+            "perceptual_loss": perceptual_loss,
+            "scale_loss": scale_loss,
+            "max_loss": max_loss
         }
     
     def _perceptual_loss(self, target: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
