@@ -29,48 +29,75 @@ logger = logging.getLogger(__name__)
 class TeluguAudioDataset(Dataset):
     """Dataset for Telugu audio codec training"""
     
-    def __init__(self, data_dir: str, segment_length: int = 16000, split: str = "train"):
+    def __init__(self, data_dir: str, segment_length: int = 16000, split: str = "train", val_ratio: float = 0.1, test_ratio: float = 0.1):
         self.data_dir = Path(data_dir)
         self.segment_length = segment_length
         self.split = split
         
-        # Load metadata
-        metadata_file = self.data_dir / "metadata" / f"{split}.json"
-        with open(metadata_file, 'r') as f:
-            self.segments = json.load(f)
+        # Find all WAV files recursively
+        all_audio_files = list(self.data_dir.rglob("*.wav"))
+        if not all_audio_files:
+            raise ValueError(f"No WAV files found in {data_dir}")
         
-        logger.info(f"Loaded {len(self.segments)} segments for {split}")
+        # Sort for consistent ordering
+        all_audio_files.sort()
+        
+        # Create train/val/test splits
+        total_files = len(all_audio_files)
+        n_test = int(total_files * test_ratio)
+        n_val = int(total_files * val_ratio)
+        n_train = total_files - n_test - n_val
+        
+        if split == "train":
+            self.audio_files = all_audio_files[:n_train]
+        elif split == "validation":
+            self.audio_files = all_audio_files[n_train:n_train + n_val]
+        elif split == "test":
+            self.audio_files = all_audio_files[n_train + n_val:]
+        else:
+            raise ValueError(f"Unknown split: {split}")
+        
+        logger.info(f"Loaded {len(self.audio_files)} audio files for {split} split")
     
     def __len__(self):
-        return len(self.segments)
+        return len(self.audio_files)
     
     def __getitem__(self, idx):
-        segment = self.segments[idx]
-        audio_path = segment["audio_path"]
+        audio_path = self.audio_files[idx]
         
-        # Load audio
-        waveform, sample_rate = torchaudio.load(audio_path)
-        
-        # Resample if needed
-        if sample_rate != 16000:
-            resampler = torchaudio.transforms.Resample(sample_rate, 16000)
-            waveform = resampler(waveform)
-        
-        # Ensure mono
-        if waveform.shape[0] > 1:
-            waveform = waveform.mean(dim=0, keepdim=True)
-        
-        # Random crop or pad
-        if waveform.shape[1] > self.segment_length:
-            # Random crop
-            start = torch.randint(0, waveform.shape[1] - self.segment_length + 1, (1,))
-            waveform = waveform[:, start:start + self.segment_length]
-        elif waveform.shape[1] < self.segment_length:
-            # Pad
-            padding = self.segment_length - waveform.shape[1]
-            waveform = F.pad(waveform, (0, padding))
-        
-        return waveform
+        try:
+            # Load audio
+            waveform, sample_rate = torchaudio.load(str(audio_path))
+            
+            # Resample if needed
+            if sample_rate != 16000:
+                resampler = torchaudio.transforms.Resample(sample_rate, 16000)
+                waveform = resampler(waveform)
+            
+            # Ensure mono
+            if waveform.shape[0] > 1:
+                waveform = waveform.mean(dim=0, keepdim=True)
+            
+            # Random crop or pad to segment_length
+            if waveform.shape[1] > self.segment_length:
+                # Random crop during training, deterministic during val/test
+                if self.split == "train":
+                    max_start = waveform.shape[1] - self.segment_length
+                    start = torch.randint(0, max_start + 1, (1,)).item()
+                else:
+                    start = 0  # Always use beginning for validation/test
+                waveform = waveform[:, start:start + self.segment_length]
+            elif waveform.shape[1] < self.segment_length:
+                # Pad with zeros
+                padding = self.segment_length - waveform.shape[1]
+                waveform = F.pad(waveform, (0, padding))
+            
+            return waveform
+            
+        except Exception as e:
+            logger.warning(f"Error loading {audio_path}: {e}. Returning silence.")
+            # Return silence if file is corrupted
+            return torch.zeros(1, self.segment_length)
 
 class CodecTrainer:
     """Trainer for TeluCodec with H200 optimizations"""
@@ -136,12 +163,18 @@ class CodecTrainer:
         )
         
         # Initialize wandb
-        if config.get("use_wandb", True):
-            wandb.init(
-                project="telugu-codec",
-                config=config,
-                name=f"telucodec_{config['experiment_name']}"
-            )
+        self.use_wandb = config.get("use_wandb", True)
+        if self.use_wandb:
+            try:
+                wandb.init(
+                    project="telugu-codec",
+                    config=config,
+                    name=f"{config['experiment_name']}"
+                )
+                logger.info("WandB initialized successfully")
+            except Exception as e:
+                logger.warning(f"WandB initialization failed: {e}. Continuing without WandB.")
+                self.use_wandb = False
         
         # Compile model for faster training (PyTorch 2.0+)
         if hasattr(torch, 'compile'):
@@ -190,7 +223,7 @@ class CodecTrainer:
                 })
             
             # Wandb logging
-            if batch_idx % 50 == 0 and wandb.run:
+            if batch_idx % 50 == 0 and self.use_wandb:
                 wandb.log({
                     "train/loss": loss.item(),
                     "train/recon_loss": output["recon_loss"].item(),
@@ -227,7 +260,7 @@ class CodecTrainer:
         avg_loss = total_loss / len(self.val_loader)
         avg_snr = total_snr / len(self.val_loader)
         
-        if wandb.run:
+        if self.use_wandb:
             wandb.log({
                 "val/loss": avg_loss,
                 "val/snr": avg_snr,
