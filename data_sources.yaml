@@ -100,16 +100,16 @@ spotify_podcasts:
 collection_strategy:
   phase_1_priority:
     # Week 1: Collect highest quality sources
-    - raw_talks_vk: "All episodes (50+ hours)"
-    - news_segments: "Prime time news from each channel (20 hours)"
-    - audiobooks: "Clear narration samples (10 hours)"
+    raw_talks_vk: "All episodes (50+ hours)"
+    news_segments: "Prime time news from each channel (20 hours)"
+    audiobooks: "Clear narration samples (10 hours)"
     total_target: "80 hours"
     
   phase_2_expansion:
     # Week 2: Add diversity
-    - comedy_content: "Natural emotions (10 hours)"
-    - interviews: "Various speakers (20 hours)"
-    - educational: "Domain-specific vocabulary (10 hours)"
+    comedy_content: "Natural emotions (10 hours)"
+    interviews: "Various speakers (20 hours)"
+    educational: "Domain-specific vocabulary (10 hours)"
     total_target: "40 hours"
     
   quality_requirements:
