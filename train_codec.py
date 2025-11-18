@@ -256,30 +256,39 @@ class CodecTrainer:
             
             total_loss += output["loss"].item()
             
-            # Calculate SNR - use only actual audio content, not zero-padding
-            # Find regions with actual audio energy (not silence/padding)
-            # Use a threshold to exclude near-zero regions
-            audio_abs = audio.abs()
-            non_zero_mask = audio_abs > 1e-4  # Threshold for non-silent regions
+            # Calculate SNR with DEBUG logging
+            # Log actual values to understand what's happening
+            audio_min = audio.min().item()
+            audio_max = audio.max().item()
+            audio_mean = audio.mean().item()
+            audio_std = audio.std().item()
             
-            # Count non-zero samples
-            num_non_zero = non_zero_mask.sum().item()
+            output_min = output["audio"].min().item()
+            output_max = output["audio"].max().item()
+            output_mean = output["audio"].mean().item()
+            output_std = output["audio"].std().item()
             
-            if num_non_zero > 100:  # Need at least 100 samples for valid SNR
-                # Extract only non-zero regions for fair SNR calculation
-                audio_nz = audio[non_zero_mask]
-                output_nz = output["audio"][non_zero_mask]
+            # Calculate simple SNR on full signal
+            signal_power = (audio ** 2).mean()
+            noise_power = ((audio - output["audio"]) ** 2).mean()
+            
+            # Prevent division by zero
+            if signal_power < 1e-10:
+                signal_power = 1e-10
+            if noise_power < 1e-10:
+                noise_power = 1e-10
                 
-                signal_power = (audio_nz ** 2).mean()
-                noise_power = ((audio_nz - output_nz) ** 2).mean()
-                snr = 10 * torch.log10(signal_power / (noise_power + 1e-8))
-                total_snr += snr.item()
-            else:
-                # Too much silence, use full signal for SNR
-                signal_power = (audio ** 2).mean() + 1e-8
-                noise_power = ((audio - output["audio"]) ** 2).mean()
-                snr = 10 * torch.log10(signal_power / (noise_power + 1e-8))
-                total_snr += snr.item()
+            snr = 10 * torch.log10(signal_power / noise_power)
+            
+            logger.info(f"\n=== VALIDATION SNR DEBUG ===")
+            logger.info(f"Input  range: [{audio_min:.6f}, {audio_max:.6f}], mean={audio_mean:.6f}, std={audio_std:.6f}")
+            logger.info(f"Output range: [{output_min:.6f}, {output_max:.6f}], mean={output_mean:.6f}, std={output_std:.6f}")
+            logger.info(f"Signal power: {signal_power:.8f}")
+            logger.info(f"Noise power:  {noise_power:.8f}")
+            logger.info(f"SNR: {snr.item():.2f} dB")
+            logger.info(f"==========================\n")
+            
+            total_snr += snr.item()
         
         avg_loss = total_loss / len(self.val_loader)
         avg_snr = total_snr / len(self.val_loader)
