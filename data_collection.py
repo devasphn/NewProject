@@ -75,6 +75,10 @@ class TeluguDataCollector:
             
             logger.info(f"Downloading from: {url}")
             
+            # For channels, get videos tab URL
+            if "@" in url and "/videos" not in url:
+                url = url.rstrip("/") + "/videos"
+            
             # Download latest videos from channel (max 10 videos, max 2 hours each)
             cmd = [
                 "yt-dlp",
@@ -84,14 +88,13 @@ class TeluguDataCollector:
                 "-o", str(source_dir / "%(title)s.%(ext)s"),
                 "--max-downloads", "10",
                 "--match-filter", f"duration < {max_duration}",
-                "--no-playlist" if "/watch?v=" in url else "",
+                "--playlist-end", "10",
+                "--no-check-certificate",
+                "--extractor-args", "youtube:player_client=android",
                 url
             ]
             
-            # Remove empty string from cmd
-            cmd = [c for c in cmd if c]
-            
-            logger.info(f"Running: {' '.join(cmd[:8])}...")
+            logger.info(f"Running: yt-dlp with Android client (no JS needed)...")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
@@ -102,14 +105,18 @@ class TeluguDataCollector:
                     return source_dir
                 else:
                     logger.warning(f"No files downloaded for {output_name}")
+                    logger.warning(f"stdout: {result.stdout[:300]}")
                     return None
             else:
                 logger.error(f"yt-dlp failed for {url}")
-                logger.error(f"Error: {result.stderr[:200]}")
+                logger.error(f"stderr: {result.stderr[:500]}")
+                logger.error(f"stdout: {result.stdout[:300]}")
                 return None
                 
         except Exception as e:
             logger.error(f"Download error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def extract_audio_segment(self, audio_path: Path, start: float, end: float, 

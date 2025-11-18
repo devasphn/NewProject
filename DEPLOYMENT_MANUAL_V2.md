@@ -167,11 +167,8 @@ echo "✓ System ready"
 ```bash
 # Navigate to workspace
 cd /workspace
-
-# Clone YOUR repository (NewProject, not telugu-s2s)
 git clone https://github.com/devasphn/NewProject.git
-cd NewProject  # Note: NOT telugu-s2s
-
+cd NewProject 
 # Verify files
 ls -la
 # Should see: speaker_embeddings.py, streaming_server_advanced.py, context_manager.py
@@ -226,7 +223,18 @@ echo "✓ Environment configured"
 
 ## 📊 PHASE 4: Data Collection
 
-### Step 1: Start Data Collection
+### Step 1: Install Node.js (Required for YouTube downloads)
+```bash
+# Install Node.js for yt-dlp JavaScript runtime
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should show v20.x.x
+npm --version   # Should show 10.x.x
+```
+
+### Step 2: Start Data Collection
 ```bash
 cd /workspace/NewProject
 
@@ -247,21 +255,26 @@ python data_collection.py \
 # Screen continues running in background
 ```
 
-### Step 2: Monitor Progress
+### Step 3: Monitor Progress
 ```bash
 # Check screen is running
 screen -ls
 # Should show: data_collection (Detached)
 
-# Monitor data size
-watch -n 60 "du -sh /workspace/telugu_data && ls -la /workspace/telugu_data"
+# Monitor data size (in a new terminal)
+watch -n 60 "du -sh /workspace/telugu_data && ls -lh /workspace/telugu_data/raw"
 
 # View logs
 screen -r data_collection  # Reattach to see progress
 # Detach again: Ctrl+A, then D
+
+# Expected output:
+# - Each channel creates a subdirectory in /workspace/telugu_data/raw/
+# - Files download as: raw_talks_vk/*.wav, 10TV_Telugu/*.wav, etc.
+# - Size should grow to several GB over 30-60 minutes
 ```
 
-### Step 3: Prepare Speaker Data
+### Step 4: Prepare Speaker Data
 ```bash
 # After data collection (1-2 hours)
 cd /workspace/NewProject
