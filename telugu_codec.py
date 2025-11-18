@@ -368,8 +368,8 @@ class TeluCodec(nn.Module):
         # Clamp VQ loss
         vq_loss = torch.clamp(vq_loss, 0, 10.0)
         
-        # Total loss with safeguards
-        total_loss = recon_loss + vq_loss + 0.1 * perceptual_loss
+        # Total loss with safeguards - reduced perceptual weight for better balance
+        total_loss = recon_loss + vq_loss + 0.01 * perceptual_loss  # Changed from 0.1 to 0.01
         
         # Final NaN check
         if torch.isnan(total_loss) or torch.isinf(total_loss):
