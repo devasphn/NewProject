@@ -226,13 +226,13 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality - NO TANH to allow unbounded output
+        # Post-processing for audio quality with tanh to match input range [-1, 1]
         self.post_net = nn.Sequential(
             nn.Conv1d(output_channels, 16, kernel_size=5, padding=2),
             nn.BatchNorm1d(16),
             nn.Tanh(),
-            nn.Conv1d(16, output_channels, kernel_size=5, padding=2)
-            # NO final activation - let decoder output match input audio scale
+            nn.Conv1d(16, output_channels, kernel_size=5, padding=2),
+            nn.Tanh()  # Match input data range [-1, 1]
         )
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
