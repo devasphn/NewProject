@@ -56,26 +56,38 @@ def classify_audio_file(file_path: Path, metadata: Dict = None) -> int:
     file_str = str(file_path).lower()
     
     # Check source directory patterns
-    if "raw_talks" in file_str or "rawtalks" in file_str:
-        # Check if it's male or female speaker
-        if any(kw in file_str for kw in ["female", "woman", "lady"]):
-            return 2  # female_young
+    if "raw_talks" in file_str or "rawtalks" in file_str or "raw talks" in file_str:
+        # Raw Talks: 70% male_young, 30% female_young (guests)
+        # Use hash of filename for consistent assignment
+        file_hash = hash(str(file_path))
+        if file_hash % 100 < 30:
+            return 2  # female_young (30% for guests)
         else:
-            return 0  # male_young (default for Raw Talks)
+            return 0  # male_young (70% for host)
     
-    elif "10tv" in file_str or "ntv" in file_str:
-        # News channels - check for gender
-        if any(kw in file_str for kw in ["female", "woman", "anchor_f"]):
+    elif "10tv" in file_str or "10 tv" in file_str:
+        # 10TV: 50/50 split between male mature and female professional
+        file_hash = hash(str(file_path))
+        if file_hash % 2 == 0:
+            return 1  # male_mature
+        else:
+            return 3  # female_professional
+    
+    elif "sakshi" in file_str:
+        # Sakshi: Mostly female professional (70%), some male mature (30%)
+        file_hash = hash(str(file_path))
+        if file_hash % 100 < 70:
             return 3  # female_professional
         else:
             return 1  # male_mature
     
-    elif "sakshi" in file_str or "tv9" in file_str:
-        # More news channels
-        if any(kw in file_str for kw in ["male", "man", "anchor_m"]):
+    elif "tv9" in file_str:
+        # TV9: 50/50 split
+        file_hash = hash(str(file_path))
+        if file_hash % 2 == 0:
             return 1  # male_mature
         else:
-            return 3  # female_professional (default for Sakshi)
+            return 3  # female_professional
     
     # Check metadata if available
     if metadata:
@@ -94,8 +106,9 @@ def classify_audio_file(file_path: Path, metadata: Dict = None) -> int:
             else:
                 return 3  # female_professional
     
-    # Default: randomly assign based on distribution
-    return random.choice([0, 1, 2, 3])
+    # Default: distribute evenly
+    file_hash = hash(str(file_path))
+    return file_hash % 4
 
 def prepare_speaker_dataset(
     data_dir: str,
@@ -176,12 +189,10 @@ def prepare_speaker_dataset(
                         shutil.copy2(audio_file, dest_file)
     
     # Balance dataset
-    min_count = min(speaker_counts.values())
-    logger.info(f"Speaker distribution: {speaker_counts}")
-    logger.info(f"Minimum samples per speaker: {min_count}")
+    logger.info(f"Speaker distribution (before balancing): {speaker_counts}")
     
-    # Create balanced splits
-    balanced_mapping = balance_speakers(file_mapping, min_count)
+    # Create balanced splits (function handles empty speakers internally)
+    balanced_mapping = balance_speakers(file_mapping, 0)  # target_count unused, calculated internally
     
     # Save mapping
     mapping_file = output_path / "speaker_mapping.json"
@@ -230,18 +241,29 @@ def balance_speakers(
     for entry in file_mapping:
         speaker_files[entry["speaker_id"]].append(entry)
     
-    # Sample equally from each speaker
-    for speaker_id in range(4):
-        files = speaker_files[speaker_id]
-        
-        if len(files) > target_count:
+    # Filter out speakers with no samples and recalculate target
+    active_speakers = {sid: files for sid, files in speaker_files.items() if len(files) > 0}
+    
+    if not active_speakers:
+        logger.warning("No speakers have any samples!")
+        return []
+    
+    # Use minimum of active speakers, but ensure at least some samples
+    actual_target = max(1, min(len(files) for files in active_speakers.values()))
+    
+    logger.info(f"Balancing {len(active_speakers)} speakers with target {actual_target} samples each")
+    
+    # Sample from active speakers only
+    for speaker_id, files in active_speakers.items():
+        if len(files) > actual_target:
             # Randomly sample
-            sampled = random.sample(files, target_count)
+            sampled = random.sample(files, actual_target)
         else:
             # Use all available
             sampled = files
         
         balanced.extend(sampled)
+        logger.info(f"  Speaker {speaker_id}: {len(sampled)} samples")
     
     random.shuffle(balanced)
     return balanced
