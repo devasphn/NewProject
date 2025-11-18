@@ -258,9 +258,10 @@ class TeluguDecoder(nn.Module):
         # Post-processing for quality
         audio = self.post_net(x)
         
-        # NO activation - let network learn unbounded output
-        # Input is clipped to [-1, 1], network will learn to match
-        # This is how EnCodec, DAC, SoundStream work
+        # CRITICAL: Remove DC offset to prevent network from cheating RMS loss
+        # Network was adding DC bias to satisfy RMS without learning waveform!
+        audio_mean = audio.mean(dim=-1, keepdim=True)
+        audio = audio - audio_mean  # Force zero mean
         
         return audio
 
@@ -370,19 +371,26 @@ class TeluCodec(nn.Module):
         mse_loss = F.mse_loss(audio_recon, audio)
         recon_loss = l1_loss + mse_loss
         
-        # Scale loss: Per-sample RMS for stronger gradients
-        # Compute RMS per sample in batch, then average
-        input_rms = torch.sqrt((audio ** 2).mean(dim=[1, 2], keepdim=True) + 1e-8)
-        output_rms = torch.sqrt((audio_recon ** 2).mean(dim=[1, 2], keepdim=True) + 1e-8)
-        scale_loss = F.mse_loss(output_rms, input_rms)
+        # CRITICAL: DC offset loss - prevent network from cheating!
+        # Network was adding DC bias to satisfy RMS without learning waveform
+        input_mean = audio.mean()
+        output_mean = audio_recon.mean()
+        dc_loss = F.mse_loss(output_mean, input_mean)
+        
+        # Scale loss: Use STD instead of RMS to prevent DC bias cheating
+        # std = amplitude, RMS = sqrt(mean^2 + std^2) can be satisfied by DC!
+        input_std = audio.std()
+        output_std = audio_recon.std()
+        scale_loss = F.mse_loss(output_std, input_std)
         
         # Perceptual loss (multi-scale spectral) - keep in float32
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
         
-        # Balanced total loss with STRONG scale emphasis
+        # Balanced total loss with DC and amplitude constraints
         total_loss = (
             1.0 * recon_loss +        # Main reconstruction
-            15.0 * scale_loss +       # CRITICAL: Strong amplitude matching!
+            20.0 * dc_loss +          # CRITICAL: Force zero mean!
+            15.0 * scale_loss +       # Amplitude (std, not RMS!)
             0.01 * perceptual_loss +  # Perceptual (small weight)
             5.0 * vq_loss             # VQ strong signal
         )
@@ -404,6 +412,7 @@ class TeluCodec(nn.Module):
             "vq_loss": vq_loss,
             "perceptual_loss": perceptual_loss,
             "scale_loss": scale_loss,
+            "dc_loss": dc_loss,
             "max_loss": max_loss
         }
     
