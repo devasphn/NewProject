@@ -362,26 +362,23 @@ class TeluCodec(nn.Module):
         recon_loss = F.l1_loss(audio_recon, audio)
         recon_loss = torch.clamp(recon_loss, 0, 10.0)  # Prevent explosion
         
-        # CRITICAL: Amplitude/Scale matching loss
-        # Force decoder to match input magnitude (not just shape)
-        input_rms = torch.sqrt((audio ** 2).mean(dim=-1, keepdim=True) + 1e-8)
-        output_rms = torch.sqrt((audio_recon ** 2).mean(dim=-1, keepdim=True) + 1e-8)
-        scale_loss = F.mse_loss(output_rms, input_rms) * 10.0  # Strong weight!
+        # MSE loss (stronger than L1 for waveform matching)
+        mse_loss = F.mse_loss(audio_recon, audio)
+        mse_loss = torch.clamp(mse_loss, 0, 10.0)
         
-        # Also match absolute max values
-        input_max = audio.abs().max(dim=-1, keepdim=True)[0]
-        output_max = audio_recon.abs().max(dim=-1, keepdim=True)[0]
-        max_loss = F.mse_loss(output_max, input_max) * 5.0
-        
-        # Perceptual loss (multi-scale spectral) - REMOVED during early training
-        # perceptual_loss = self._perceptual_loss(audio, audio_recon)
-        perceptual_loss = torch.tensor(0.0, device=audio.device)  # Disabled!
+        # Perceptual loss (multi-scale spectral) 
+        perceptual_loss = self._perceptual_loss(audio, audio_recon)
         
         # Clamp VQ loss
         vq_loss = torch.clamp(vq_loss, 0, 10.0)
         
-        # Total loss: recon + scale matching + max matching + VQ
-        total_loss = recon_loss + scale_loss + max_loss + vq_loss
+        # Simple total loss: L1 + MSE + perceptual + VQ
+        # MSE is key - it penalizes amplitude errors quadratically
+        total_loss = recon_loss + mse_loss + 0.1 * perceptual_loss + vq_loss
+        
+        # Store for monitoring
+        scale_loss = torch.tensor(0.0, device=audio.device)
+        max_loss = torch.tensor(0.0, device=audio.device)
         
         # Final NaN check
         if torch.isnan(total_loss) or torch.isinf(total_loss):
@@ -393,6 +390,7 @@ class TeluCodec(nn.Module):
             "codes": codes,
             "loss": total_loss,
             "recon_loss": recon_loss,
+            "mse_loss": mse_loss,
             "vq_loss": vq_loss,
             "perceptual_loss": perceptual_loss,
             "scale_loss": scale_loss,

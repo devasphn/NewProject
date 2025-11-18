@@ -92,8 +92,9 @@ class TeluguAudioDataset(Dataset):
                 padding = self.segment_length - waveform.shape[1]
                 waveform = F.pad(waveform, (0, padding))
             
-            # NO NORMALIZATION - let model learn the actual audio scale
-            # Decoder has no tanh, so it can output any range to match input
+            # CRITICAL: Clip to [-1, 1] to match decoder Tanh output range
+            # Some audio files have peaks beyond [-1, 1] which decoder cannot match
+            waveform = torch.clamp(waveform, -1.0, 1.0)
             
             return waveform
             
@@ -223,7 +224,6 @@ class CodecTrainer:
                 pbar.set_postfix({
                     "loss": loss.item(),
                     "recon": output["recon_loss"].item(),
-                    "scale": output.get("scale_loss", torch.tensor(0)).item(),
                     "vq": output["vq_loss"].item(),
                     "lr": self.scheduler.get_last_lr()[0]
                 })
