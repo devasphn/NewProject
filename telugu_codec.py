@@ -94,31 +94,36 @@ class VectorQuantizer(nn.Module):
             
             # Quantize
             quantized_step = F.embedding(indices, self.codebooks[q])
-            quantized += quantized_step
             
-            # Commitment loss - pull encoder output TO codebook (not backwards!)
-            # Gradient flows to encoder, not codebook
+            # CRITICAL: BOTH losses needed (I was missing codebook loss!)
+            # 1. Codebook loss: Pull codebook TO encoder output
+            codebook_loss = F.mse_loss(quantized_step, residual.detach())
+            
+            # 2. Commitment loss: Pull encoder output TO codebook
             commitment_loss = F.mse_loss(residual, quantized_step.detach())
-            commitment_loss = torch.clamp(commitment_loss, 0, 10.0)  # Prevent explosion
-            losses.append(commitment_loss * self.commitment_weight)
             
-            # EMA codebook update - track what encoder OUTPUTS (residual before quantization)
+            # Total VQ loss for this quantizer
+            vq_step_loss = codebook_loss + self.commitment_weight * commitment_loss
+            losses.append(vq_step_loss)
+            
+            # EMA codebook update - track encoder outputs
             if self.training:
                 self._update_codebook_ema(q, residual.detach(), indices)
             
-            # Update residual
+            # Straight-through estimator PER STEP (not after loop!)
+            quantized_step_ste = residual + (quantized_step - residual).detach()
+            quantized += quantized_step_ste
+            
+            # Update residual (detached)
             residual = residual - quantized_step.detach()
         
         quantized = rearrange(quantized, 'b t d -> b d t')
         codes = torch.stack(codes, dim=1)  # [B, Q, T]
-        total_loss = sum(losses) if losses else torch.tensor(0.0, device=z.device)
         
-        # Clamp total VQ loss
-        total_loss = torch.clamp(total_loss, 0, 10.0)
+        # Average loss over quantizers (not sum!)
+        total_loss = sum(losses) / len(losses) if losses else torch.tensor(0.0, device=z.device)
         
-        # Straight-through estimator
-        quantized = z.reshape(B, D, T) + (quantized - z.reshape(B, D, T)).detach()
-        
+        # STE already applied per-step above, no need here
         return quantized, codes, total_loss
     
     def _update_codebook_ema(self, q_idx, inputs, indices):
@@ -227,14 +232,15 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality - with tanh to match input range
+        # Post-processing for audio quality
         self.post_net = nn.Sequential(
             nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3),
             nn.Tanh()  # Bound to [-1, 1] to match clipped input
         )
         
-        # NO learnable scale - let VQ fix handle it naturally
-        # VQ now has correct gradients, decoder will learn proper amplitude
+        # CRITICAL: Learnable output scale to match input amplitude
+        # Initialize > 1 to encourage larger outputs
+        self.output_scale = nn.Parameter(torch.tensor([3.0]))
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         """
@@ -255,6 +261,9 @@ class TeluguDecoder(nn.Module):
         
         # Post-processing for quality
         audio = self.post_net(x)
+        
+        # Apply learnable scale to match input amplitude
+        audio = audio * self.output_scale
         
         return audio
 
@@ -359,21 +368,20 @@ class TeluCodec(nn.Module):
                 padding = original_length - audio_recon.shape[-1]
                 audio_recon = F.pad(audio_recon, (0, padding))
         
-        # Combined L1 + MSE for robust training
+        # Combined L1 + MSE for robust training (no clamping - let gradient clipping handle it)
         l1_loss = F.l1_loss(audio_recon, audio)
         mse_loss = F.mse_loss(audio_recon, audio)
         recon_loss = l1_loss + mse_loss
-        recon_loss = torch.clamp(recon_loss, 0, 5.0)  # Prevent explosion
         
-        # Perceptual loss (multi-scale spectral) - tiny weight
+        # Perceptual loss (multi-scale spectral) - keep in float32
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
-        perceptual_loss = torch.clamp(perceptual_loss, 0, 10.0)
         
-        # Clamp VQ loss
-        vq_loss = torch.clamp(vq_loss, 0, 10.0)
+        # VQ loss already averaged in quantizer
+        # Don't clamp - if it explodes we need to see it!
         
-        # Total loss: L1+MSE + tiny perceptual + VQ
-        total_loss = recon_loss + 0.01 * perceptual_loss + vq_loss
+        # Total loss: reconstruction + perceptual + VQ
+        # Higher weight on reconstruction to drive amplitude learning
+        total_loss = 2.0 * recon_loss + 0.1 * perceptual_loss + vq_loss
         
         # Store for monitoring (compatibility)
         scale_loss = torch.tensor(0.0, device=audio.device)
@@ -429,10 +437,8 @@ class TeluCodec(nn.Module):
             # L1 + L2 loss on magnitude
             loss += F.l1_loss(pred_spec, target_spec) + F.mse_loss(pred_spec, target_spec)
         
-        # Clamp loss to prevent NaN and cast back to original dtype
-        loss = torch.clamp(loss / 3, 0, 100.0)
-        
-        return loss.to(target.dtype)
+        # Average over scales and return in float32 (don't clamp or cast)
+        return loss / 3.0
     
     @torch.no_grad()
     def encode_streaming(self, audio_chunk: torch.Tensor) -> Optional[torch.Tensor]:
