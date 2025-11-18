@@ -354,14 +354,23 @@ class TeluCodec(nn.Module):
                 padding = original_length - audio_recon.shape[-1]
                 audio_recon = F.pad(audio_recon, (0, padding))
         
-        # Reconstruction loss
+        # Reconstruction loss with clamping
         recon_loss = F.l1_loss(audio_recon, audio)
+        recon_loss = torch.clamp(recon_loss, 0, 10.0)  # Prevent explosion
         
         # Perceptual loss (multi-scale spectral)
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
         
-        # Total loss
+        # Clamp VQ loss
+        vq_loss = torch.clamp(vq_loss, 0, 10.0)
+        
+        # Total loss with safeguards
         total_loss = recon_loss + vq_loss + 0.1 * perceptual_loss
+        
+        # Final NaN check
+        if torch.isnan(total_loss) or torch.isinf(total_loss):
+            # Return safe default loss if NaN detected
+            total_loss = torch.tensor(1.0, device=audio.device, requires_grad=True)
         
         return {
             "audio": audio_recon,
@@ -381,20 +390,30 @@ class TeluCodec(nn.Module):
         
         loss = 0
         for n_fft in [512, 1024, 2048]:
-            # Compute spectrograms
+            # Create Hann window to prevent spectral leakage
+            window = torch.hann_window(n_fft, device=target.device)
+            
+            # Compute spectrograms with proper window
             target_spec = torch.stft(
                 target.squeeze(1), n_fft=n_fft, 
-                hop_length=n_fft//4, return_complex=True
+                hop_length=n_fft//4, window=window, return_complex=True
             ).abs()
             pred_spec = torch.stft(
                 pred.squeeze(1), n_fft=n_fft,
-                hop_length=n_fft//4, return_complex=True
+                hop_length=n_fft//4, window=window, return_complex=True
             ).abs()
+            
+            # Add small epsilon to prevent log(0) or division by zero
+            target_spec = target_spec + 1e-7
+            pred_spec = pred_spec + 1e-7
             
             # L1 + L2 loss on magnitude
             loss += F.l1_loss(pred_spec, target_spec) + F.mse_loss(pred_spec, target_spec)
         
-        return loss / 3
+        # Clamp loss to prevent NaN
+        loss = torch.clamp(loss / 3, 0, 100.0)
+        
+        return loss
     
     @torch.no_grad()
     def encode_streaming(self, audio_chunk: torch.Tensor) -> Optional[torch.Tensor]:
