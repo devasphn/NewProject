@@ -53,7 +53,7 @@ triton==2.2.0
 
 yt-dlp>=2024.11.18
 whisperx @ git+https://github.com/m-bain/whisperX.git
-pyannote.audio==3.1.1
+pyannote.audio>=3.3.2,<4.0.0  # Required by WhisperX
 
 # ============================================
 # WEB SERVER
