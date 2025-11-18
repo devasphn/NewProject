@@ -232,15 +232,14 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality
+        # Post-processing for audio quality (no activation here!)
         self.post_net = nn.Sequential(
-            nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3),
-            nn.Tanh()  # Bound to [-1, 1] to match clipped input
+            nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3)
         )
         
-        # CRITICAL: Learnable output scale to match input amplitude
-        # Initialize > 1 to encourage larger outputs
-        self.output_scale = nn.Parameter(torch.tensor([3.0]))
+        # Learnable output scale - initialize to 1.0 for stability
+        # Will gradually learn correct amplitude
+        self.output_scale = nn.Parameter(torch.tensor([1.0]))
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         """
@@ -262,8 +261,10 @@ class TeluguDecoder(nn.Module):
         # Post-processing for quality
         audio = self.post_net(x)
         
-        # Apply learnable scale to match input amplitude
+        # Apply scale THEN soft clip with tanh
+        # This allows scale > 1.0 to push into tanh's sensitive region
         audio = audio * self.output_scale
+        audio = torch.tanh(audio)  # Soft bound to [-1, 1]
         
         return audio
 
@@ -368,23 +369,28 @@ class TeluCodec(nn.Module):
                 padding = original_length - audio_recon.shape[-1]
                 audio_recon = F.pad(audio_recon, (0, padding))
         
-        # Combined L1 + MSE for robust training (no clamping - let gradient clipping handle it)
+        # Combined L1 + MSE for robust training
         l1_loss = F.l1_loss(audio_recon, audio)
         mse_loss = F.mse_loss(audio_recon, audio)
         recon_loss = l1_loss + mse_loss
         
+        # Scale loss: Explicitly guide amplitude matching (RMS ratio)
+        input_rms = torch.sqrt((audio ** 2).mean() + 1e-8)
+        output_rms = torch.sqrt((audio_recon ** 2).mean() + 1e-8)
+        scale_loss = F.mse_loss(output_rms, input_rms)
+        
         # Perceptual loss (multi-scale spectral) - keep in float32
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
         
-        # VQ loss already averaged in quantizer
-        # Don't clamp - if it explodes we need to see it!
-        
-        # Total loss: reconstruction + perceptual + VQ
-        # Higher weight on reconstruction to drive amplitude learning
-        total_loss = 2.0 * recon_loss + 0.1 * perceptual_loss + vq_loss
+        # Balanced total loss - VQ needs stronger signal
+        total_loss = (
+            1.0 * recon_loss +       # Main reconstruction
+            1.0 * scale_loss +        # Amplitude matching (equal weight!)
+            0.01 * perceptual_loss +  # Perceptual (small weight to avoid explosion)
+            5.0 * vq_loss             # VQ strong signal
+        )
         
         # Store for monitoring (compatibility)
-        scale_loss = torch.tensor(0.0, device=audio.device)
         max_loss = torch.tensor(0.0, device=audio.device)
         
         # Final NaN check
