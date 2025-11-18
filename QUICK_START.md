@@ -1,81 +1,89 @@
-# ⚡ QUICK START - For devasphn
+# ⚡ QUICK START
 
-## RunPod Web Terminal Commands
+## RunPod Commands (Copy-Paste)
 
-**Copy-paste these commands ONE BY ONE:**
-
-### Step 1: Install & Clone
+### 1. Install Dependencies
 ```bash
-apt-get update && apt-get install -y git ffmpeg
+apt-get update
+apt-get install -y git ffmpeg
 ```
 
-### Step 2: Get Code
+### 2. Clone Repository
 ```bash
 cd /workspace
 git clone https://github.com/devasphn/NewProject.git
 cd NewProject
 ```
 
-### Step 3: Setup
+### 3. Make Scripts Executable
 ```bash
 chmod +x startup.sh train_telugu.sh
-export HF_TOKEN='YOUR_TOKEN_HERE'
+```
+
+### 4. Set HuggingFace Token
+```bash
+export HF_TOKEN='your_token_here'
+```
+Get token: https://huggingface.co/settings/tokens
+
+### 5. Run Setup (20-25 min)
+```bash
 bash startup.sh
 ```
 
-**Get token from**: https://huggingface.co/settings/tokens
-
-### Step 4: Start Server
+### 6. Start Server
 ```bash
 python server.py
 ```
 
-### Step 5: Access Demo
-- RunPod Dashboard → Your Pod → Connect
-- Click "HTTP Service [Port 8000]"
-- Demo opens in browser!
+### 7. Access Demo
+RunPod → Your Pod → HTTP Service [Port 8000]
 
 ---
 
-## Expected Timeline
+## ⏱️ Timeline
 
-- **Setup**: 20-30 minutes
-- **Models Download**: 15-20 minutes  
-- **Testing**: 5 minutes
-- **Total**: ~45-60 minutes
+- Install: 2 min
+- Setup: 25 min
+- **Total**: ~30 min
 
 ---
 
-## After Baseline Testing
+## 🔧 Common Commands
 
-### Train Telugu Model
 ```bash
-# 1. Stop server (Ctrl+C)
-# 2. Edit download_telugu.py (add YouTube URLs)
-# 3. Run training
+# Check GPU
+nvidia-smi
+
+# Test latency
+python test_latency.py --mode baseline
+
+# Train Telugu
 bash train_telugu.sh
+
+# View logs
+tail -f logs/server.log
 ```
 
 ---
 
-## Troubleshooting
+## ⚠️ Troubleshooting
 
-### "HF_TOKEN not found"
+**HF_TOKEN error:**
 ```bash
-export HF_TOKEN='your_actual_token'
-python download_models.py
+export HF_TOKEN='your_token'
 ```
 
-### "Permission denied"
+**Permission denied:**
 ```bash
 chmod +x startup.sh train_telugu.sh
 ```
 
-### Check GPU
-```bash
-nvidia-smi
-```
+**Port not accessible:**
+- Check RunPod ports exposed
+- Restart: `python server.py`
 
 ---
 
-**That's it! Simple and straightforward!** 🚀
+**Done! See [INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md) for details** 📚
+
