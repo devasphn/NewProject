@@ -226,15 +226,14 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality - NO final tanh
-        # Input is clipped to [-1, 1], let decoder learn to match naturally
+        # Post-processing for audio quality - simplified
         self.post_net = nn.Sequential(
-            nn.Conv1d(output_channels, 16, kernel_size=5, padding=2),
-            nn.BatchNorm1d(16),
-            nn.Tanh(),
-            nn.Conv1d(16, output_channels, kernel_size=5, padding=2)
-            # NO final activation - decoder learns correct scale
+            nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3)
         )
+        
+        # Learnable output scale - CRITICAL for correct amplitude
+        # Initialize to 2.5 to force decoder to output larger values initially
+        self.output_scale = nn.Parameter(torch.tensor(2.5))
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         """
@@ -255,6 +254,9 @@ class TeluguDecoder(nn.Module):
         
         # Post-processing for quality
         audio = self.post_net(x)
+        
+        # Apply learnable scale to match input amplitude
+        audio = audio * self.output_scale
         
         return audio
 
@@ -359,24 +361,22 @@ class TeluCodec(nn.Module):
                 padding = original_length - audio_recon.shape[-1]
                 audio_recon = F.pad(audio_recon, (0, padding))
         
-        # Reconstruction loss with clamping
-        recon_loss = F.l1_loss(audio_recon, audio)
-        recon_loss = torch.clamp(recon_loss, 0, 10.0)  # Prevent explosion
+        # Simple MSE loss - handles both waveform AND amplitude naturally
+        recon_loss = F.mse_loss(audio_recon, audio)
+        recon_loss = torch.clamp(recon_loss, 0, 2.0)  # Prevent explosion
         
-        # MSE loss for stronger amplitude matching
-        mse_loss = F.mse_loss(audio_recon, audio)
-        mse_loss = torch.clamp(mse_loss, 0, 1.0)  # Strong clamp to prevent explosion!
-        
-        # Perceptual loss (multi-scale spectral) - very small weight
+        # Perceptual loss (multi-scale spectral) - tiny weight
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
+        perceptual_loss = torch.clamp(perceptual_loss, 0, 10.0)
         
         # Clamp VQ loss
         vq_loss = torch.clamp(vq_loss, 0, 10.0)
         
-        # Total loss: L1 + small MSE + tiny perceptual + VQ
-        total_loss = recon_loss + 0.5 * mse_loss + 0.01 * perceptual_loss + vq_loss
+        # Total loss: MSE (handles amplitude automatically) + tiny perceptual + VQ
+        total_loss = recon_loss + 0.01 * perceptual_loss + vq_loss
         
-        # Store for monitoring
+        # Store for monitoring (compatibility)
+        mse_loss = recon_loss
         scale_loss = torch.tensor(0.0, device=audio.device)
         max_loss = torch.tensor(0.0, device=audio.device)
         
