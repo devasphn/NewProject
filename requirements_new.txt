@@ -10,9 +10,9 @@ torch>=2.8.0
 torchaudio>=2.8.0
 torchvision>=0.18.0
 
-# Transformers & NLP
-transformers==4.45.0
-tokenizers==0.19.1
+# Transformers & NLP (compatible with WhisperX)
+transformers>=4.50.0
+tokenizers>=0.20.3
 datasets==2.18.0
 accelerate==0.33.0
 
