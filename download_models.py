@@ -103,8 +103,13 @@ def download_models():
         os.makedirs(SPEAKER_EMBEDDING_PATH, exist_ok=True)
         embeddings_dataset = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
         
-        # Save multiple speaker embeddings
-        speaker_ids = [7306, 8051, 9017, 9166]  # Different speakers
+        # Get dataset size and select valid speaker IDs
+        dataset_size = len(embeddings_dataset)
+        print(f"Dataset size: {dataset_size} samples")
+        
+        # Save multiple speaker embeddings (using valid indices)
+        # Select diverse speakers from different parts of the dataset
+        speaker_ids = [100, 2000, 4000, 6000]  # Valid indices within dataset
         for i, speaker_id in enumerate(speaker_ids):
             embedding = torch.tensor(embeddings_dataset[speaker_id]["xvector"])
             torch.save(embedding, f"{SPEAKER_EMBEDDING_PATH}/speaker_{i}.pt")
@@ -112,6 +117,8 @@ def download_models():
         print(f"✓ Downloaded {len(speaker_ids)} speaker embeddings")
     except Exception as e:
         print(f"✗ Error downloading speaker embeddings: {e}")
+        import traceback
+        traceback.print_exc()
         return False
     
     print("\n" + "=" * 60)
