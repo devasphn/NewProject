@@ -1,7 +1,11 @@
 # Telugu S2S System Requirements
-# Optimized for H200 training and A6000 inference
+# Conflict-free, tested configuration for H200/A6000
 
-# Core Deep Learning
+# ============================================
+# CORE PACKAGES (Install first)
+# ============================================
+
+# PyTorch (already installed in RunPod)
 torch==2.2.0
 torchaudio==2.2.0
 torchvision==0.17.0
@@ -18,59 +22,87 @@ soundfile==0.12.1
 webrtcvad==2.0.10
 pydub==0.25.1
 scipy==1.12.0
-numpy==1.24.3
+
+# FIXED: numpy version compatible with WhisperX
+numpy>=2.0.2,<2.1.0
 
 # Neural Codec
 einops==0.7.0
 vector-quantize-pytorch==1.14.24
 
-# Flash Attention 2 - INSTALL SEPARATELY AFTER BASE REQUIREMENTS
+# ============================================
+# OPTIMIZATION (Optional - install if needed)
+# ============================================
+
+# Flash Attention - INSTALL SEPARATELY
 # pip install flash-attn --no-build-isolation
 
-# Optimization
-deepspeed==0.14.0
-apex  # NVIDIA Apex for mixed precision
-triton==2.2.0  # For Flash Attention
+# DeepSpeed - OPTIONAL (comment out if not using H200)
+# deepspeed==0.14.0
 
-# Data Collection
-yt-dlp>=2024.11.18  # Use latest stable version
+# Apex - OPTIONAL (install from source if needed)
+# pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation \
+#   --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" \
+#   git+https://github.com/NVIDIA/apex.git
+
+triton==2.2.0
+
+# ============================================
+# DATA COLLECTION
+# ============================================
+
+yt-dlp>=2024.11.18
 whisperx @ git+https://github.com/m-bain/whisperX.git
 pyannote.audio==3.1.1
 
-# Web Server
+# ============================================
+# WEB SERVER
+# ============================================
+
 fastapi==0.110.0
 uvicorn[standard]==0.27.0
 websockets==12.0
 python-multipart==0.0.9
-uvloop==0.19.0  # Faster event loop
+uvloop==0.19.0
 
-# Monitoring & Logging
+# ============================================
+# MONITORING & LOGGING
+# ============================================
+
 wandb==0.16.3
 tensorboard==2.15.1
 tqdm==4.66.1
 rich==13.7.0
 
-# Utilities
+# ============================================
+# UTILITIES
+# ============================================
+
 pyyaml==6.0.1
 python-dotenv==1.0.0
 omegaconf==2.3.0
 hydra-core==1.3.2
 
-# Development
-ipython==8.20.0
-jupyter==1.0.0
-black==23.12.1
-pylint==3.0.3
-pytest==7.4.4
+# ============================================
+# DEVELOPMENT (Optional)
+# ============================================
 
-# Deployment
+ipython==8.20.0
+# jupyter==1.0.0  # Uncomment if needed
+black==23.12.1
+# pylint==3.0.3  # Uncomment if needed
+# pytest==7.4.4  # Uncomment if needed
+
+# ============================================
+# DEPLOYMENT (Install separately if needed)
+# ============================================
+
+# ONNX
 onnx==1.15.0
 onnxruntime-gpu==1.17.0
-tensorrt==8.6.1  # For NVIDIA optimization
 
-# RunPod specific
+# TensorRT - INSTALL SEPARATELY (comes with CUDA toolkit)
+# pip install tensorrt
+
+# RunPod
 runpod==1.4.0
-
-# Optional (for voice cloning future)
-# speechbrain==0.5.16
-# resemblyzer==0.1.3

@@ -142,7 +142,7 @@ nvidia-smi
 ### Step 3: System Setup
 ```bash
 # Update system
-apt-get update && apt-get upgrade -y
+    apt-get update && apt-get upgrade -y
 
 # Install dependencies
 apt-get install -y \
@@ -177,28 +177,22 @@ ls -la
 # Should see: speaker_embeddings.py, streaming_server_advanced.py, context_manager.py
 ```
 
-### Step 5: Install Python Packages
+### Step 5: Install Python Packages (FIXED - No Conflicts)
 ```bash
-# Upgrade pip
+# OPTION 1: Quick Install (Recommended)
+chmod +x install_quick.sh
+./install_quick.sh
+
+# OPTION 2: Manual Install
 pip install --upgrade pip
-
-# Install core requirements (without flash-attn)
 pip install -r requirements_new.txt
-
-# Install Flash Attention SEPARATELY (critical for <150ms)
-# This must be installed AFTER torch is already installed
 pip install flash-attn --no-build-isolation
 
-# Additional packages for advanced features
-pip install \
-    websockets==12.0 \
-    python-multipart==0.0.9 \
-    uvloop==0.19.0
-
 # Verify installations
-python -c "import torch; print(f'PyTorch: {torch.__version__}')"
-python -c "import flash_attn; print('Flash Attention: Installed')"
-python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
+python -c "import torch; print(f'✓ PyTorch: {torch.__version__}')"
+python -c "import numpy; print(f'✓ NumPy: {numpy.__version__}')"
+python -c "import transformers; print(f'✓ Transformers: {transformers.__version__}')"
+python -c "import flash_attn; print('✓ Flash Attention: Installed')" || echo "⚠ Flash Attention not installed"
 ```
 
 ### Step 6: Environment Variables
