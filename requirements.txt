@@ -4,7 +4,7 @@ torchvision==0.16.0
 torchaudio==2.1.0
 
 # Transformers & ML
-transformers==4.36.0
+transformers==4.43.0
 accelerate==0.25.0
 datasets==2.16.0
 sentencepiece==0.1.99
