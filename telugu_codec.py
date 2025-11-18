@@ -232,7 +232,7 @@ class TeluguDecoder(nn.Module):
             nn.BatchNorm1d(16),
             nn.Tanh(),
             nn.Conv1d(16, output_channels, kernel_size=5, padding=2),
-            nn.Tanh()
+            nn.Tanh()  # Keep tanh since input is normalized to [-1, 1]
         )
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:

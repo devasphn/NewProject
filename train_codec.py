@@ -92,6 +92,11 @@ class TeluguAudioDataset(Dataset):
                 padding = self.segment_length - waveform.shape[1]
                 waveform = F.pad(waveform, (0, padding))
             
+            # CRITICAL: Normalize to [-1, 1] to match decoder's tanh output
+            max_val = waveform.abs().max()
+            if max_val > 0:
+                waveform = waveform / max_val
+            
             return waveform
             
         except Exception as e:
