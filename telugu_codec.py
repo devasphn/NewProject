@@ -227,14 +227,14 @@ class TeluguDecoder(nn.Module):
             nn.Conv1d(32, output_channels, kernel_size=7, padding=3)
         ])
         
-        # Post-processing for audio quality - simplified
+        # Post-processing for audio quality - with tanh to match input range
         self.post_net = nn.Sequential(
-            nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3)
+            nn.Conv1d(output_channels, output_channels, kernel_size=7, padding=3),
+            nn.Tanh()  # Bound to [-1, 1] to match clipped input
         )
         
-        # Learnable output scale - CRITICAL for correct amplitude
-        # Initialize to 2.5 to force decoder to output larger values initially
-        self.output_scale = nn.Parameter(torch.tensor(2.5))
+        # NO learnable scale - let VQ fix handle it naturally
+        # VQ now has correct gradients, decoder will learn proper amplitude
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         """
@@ -255,9 +255,6 @@ class TeluguDecoder(nn.Module):
         
         # Post-processing for quality
         audio = self.post_net(x)
-        
-        # Apply learnable scale to match input amplitude
-        audio = audio * self.output_scale
         
         return audio
 
@@ -362,9 +359,11 @@ class TeluCodec(nn.Module):
                 padding = original_length - audio_recon.shape[-1]
                 audio_recon = F.pad(audio_recon, (0, padding))
         
-        # Simple MSE loss - handles both waveform AND amplitude naturally
-        recon_loss = F.mse_loss(audio_recon, audio)
-        recon_loss = torch.clamp(recon_loss, 0, 2.0)  # Prevent explosion
+        # Combined L1 + MSE for robust training
+        l1_loss = F.l1_loss(audio_recon, audio)
+        mse_loss = F.mse_loss(audio_recon, audio)
+        recon_loss = l1_loss + mse_loss
+        recon_loss = torch.clamp(recon_loss, 0, 5.0)  # Prevent explosion
         
         # Perceptual loss (multi-scale spectral) - tiny weight
         perceptual_loss = self._perceptual_loss(audio, audio_recon)
@@ -373,11 +372,10 @@ class TeluCodec(nn.Module):
         # Clamp VQ loss
         vq_loss = torch.clamp(vq_loss, 0, 10.0)
         
-        # Total loss: MSE (handles amplitude automatically) + tiny perceptual + VQ
+        # Total loss: L1+MSE + tiny perceptual + VQ
         total_loss = recon_loss + 0.01 * perceptual_loss + vq_loss
         
         # Store for monitoring (compatibility)
-        mse_loss = recon_loss
         scale_loss = torch.tensor(0.0, device=audio.device)
         max_loss = torch.tensor(0.0, device=audio.device)
         
