@@ -3,6 +3,7 @@ Telugu Speech-to-Speech Pipeline
 Optimized for RTX A6000
 """
 
+import os
 import torch
 import torchaudio
 from transformers import (
