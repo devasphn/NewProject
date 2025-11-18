@@ -29,7 +29,7 @@ LOGGING_STEPS = 10
 FP16 = True
 
 # Inference Configuration
-ASR_LANGUAGE = "te"  # Telugu
+ASR_LANGUAGE = "en"  # English (change to "te" for Telugu after training)
 MAX_NEW_TOKENS = 50
 TEMPERATURE = 0.7
 TOP_P = 0.9

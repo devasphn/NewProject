@@ -183,6 +183,12 @@
         let audioContext = null;
         let mediaStream = null;
         let processor = null;
+        let audioBuffer = [];
+        let isSpeaking = false;
+        let silenceCount = 0;
+        const SILENCE_THRESHOLD = 0.01;  // Amplitude threshold
+        const SILENCE_DURATION = 10;      // Chunks of silence before sending
+        const MIN_AUDIO_LENGTH = 16000;   // Minimum 1 second of audio
 
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -225,7 +231,7 @@
                 processor.onaudioprocess = (e) => {
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         const inputData = e.inputBuffer.getChannelData(0);
-                        sendAudio(inputData);
+                        processAudioChunk(inputData);
                     }
                 };
 
@@ -237,11 +243,44 @@
             }
         }
 
+        function processAudioChunk(audioData) {
+            // Calculate RMS to detect speech
+            let sum = 0;
+            for (let i = 0; i < audioData.length; i++) {
+                sum += audioData[i] * audioData[i];
+            }
+            const rms = Math.sqrt(sum / audioData.length);
+            
+            // Detect speech vs silence
+            if (rms > SILENCE_THRESHOLD) {
+                // Speech detected
+                isSpeaking = true;
+                silenceCount = 0;
+                audioBuffer.push(...audioData);
+            } else {
+                // Silence detected
+                if (isSpeaking) {
+                    silenceCount++;
+                    audioBuffer.push(...audioData);
+                    
+                    // After silence duration, send accumulated audio
+                    if (silenceCount >= SILENCE_DURATION && audioBuffer.length >= MIN_AUDIO_LENGTH) {
+                        sendAudio(new Float32Array(audioBuffer));
+                        audioBuffer = [];
+                        isSpeaking = false;
+                        silenceCount = 0;
+                    }
+                }
+            }
+        }
+
         function sendAudio(audioData) {
             const buffer = new Float32Array(audioData);
             const bytes = new Uint8Array(buffer.buffer);
             const binary = String.fromCharCode(...bytes);
             const base64 = btoa(binary);
+
+            console.log(`Sending ${audioData.length} samples (${(audioData.length/16000).toFixed(2)}s)`);
 
             ws.send(JSON.stringify({
                 type: 'audio',
@@ -296,6 +335,11 @@
             if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
             if (ws) ws.close();
             if (audioContext) audioContext.close();
+            
+            // Reset audio buffer
+            audioBuffer = [];
+            isSpeaking = false;
+            silenceCount = 0;
             
             status.textContent = '● Disconnected';
             status.className = 'status disconnected';

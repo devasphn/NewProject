@@ -125,8 +125,11 @@ class TeluguS2SPipeline:
         """Generate conversational response"""
         start_time = time.time()
         
-        # Simple conversational prompt
-        prompt = f"User: {text}\nAssistant:"
+        # Conversational prompt - respond naturally to user input
+        prompt = f"""You are a helpful voice assistant. Respond briefly and naturally to what the user says.
+
+User: {text}
+Assistant:"""
         
         inputs = self.llm_tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
         
@@ -136,14 +139,18 @@ class TeluguS2SPipeline:
             temperature=TEMPERATURE,
             do_sample=True,
             top_p=TOP_P,
-            pad_token_id=self.llm_tokenizer.eos_token_id
+            pad_token_id=self.llm_tokenizer.eos_token_id,
+            repetition_penalty=1.2
         )
         
         response = self.llm_tokenizer.decode(outputs[0], skip_special_tokens=True)
         
-        # Extract assistant part
+        # Extract only the assistant's response
         if "Assistant:" in response:
             response = response.split("Assistant:")[-1].strip()
+        
+        # Clean up
+        response = response.replace("User:", "").strip()
         
         latency_ms = int((time.time() - start_time) * 1000)
         return response, latency_ms
