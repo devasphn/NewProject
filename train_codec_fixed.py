@@ -85,7 +85,7 @@ def train_step(model, batch, optimizer, scaler):
     """Single training step with mixed precision"""
     model.train()
     
-    with autocast(device_type='cuda'):
+    with autocast():
         output = model(batch)
         loss = output["loss"]
     
@@ -114,7 +114,7 @@ def validate(model, val_loader, device):
     for batch in tqdm(val_loader, desc="Validation"):
         batch = batch.to(device)
         
-        with autocast(device_type='cuda'):
+        with autocast():
             output = model(batch)
         
         total_loss += output["loss"].item()
