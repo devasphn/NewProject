@@ -256,11 +256,30 @@ class CodecTrainer:
             
             total_loss += output["loss"].item()
             
-            # Calculate SNR
-            signal_power = (audio ** 2).mean()
-            noise_power = ((audio - output["audio"]) ** 2).mean()
-            snr = 10 * torch.log10(signal_power / (noise_power + 1e-8))
-            total_snr += snr.item()
+            # Calculate SNR - use only actual audio content, not zero-padding
+            # Find regions with actual audio energy (not silence/padding)
+            # Use a threshold to exclude near-zero regions
+            audio_abs = audio.abs()
+            non_zero_mask = audio_abs > 1e-4  # Threshold for non-silent regions
+            
+            # Count non-zero samples
+            num_non_zero = non_zero_mask.sum().item()
+            
+            if num_non_zero > 100:  # Need at least 100 samples for valid SNR
+                # Extract only non-zero regions for fair SNR calculation
+                audio_nz = audio[non_zero_mask]
+                output_nz = output["audio"][non_zero_mask]
+                
+                signal_power = (audio_nz ** 2).mean()
+                noise_power = ((audio_nz - output_nz) ** 2).mean()
+                snr = 10 * torch.log10(signal_power / (noise_power + 1e-8))
+                total_snr += snr.item()
+            else:
+                # Too much silence, use full signal for SNR
+                signal_power = (audio ** 2).mean() + 1e-8
+                noise_power = ((audio - output["audio"]) ** 2).mean()
+                snr = 10 * torch.log10(signal_power / (noise_power + 1e-8))
+                total_snr += snr.item()
         
         avg_loss = total_loss / len(self.val_loader)
         avg_snr = total_snr / len(self.val_loader)
