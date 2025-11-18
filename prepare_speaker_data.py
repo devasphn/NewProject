@@ -297,8 +297,24 @@ def create_splits(
         files = speaker_files[speaker_id]
         n = len(files)
         
-        n_train = int(n * train_ratio)
-        n_val = int(n * val_ratio)
+        if n == 0:
+            continue
+        
+        # Ensure val and test get at least 1 sample each when possible
+        if n >= 3:
+            n_val = max(1, int(n * val_ratio))
+            n_test = max(1, int(n * test_ratio))
+            n_train = n - n_val - n_test
+        elif n == 2:
+            # Split 50/50 between train and test
+            n_train = 1
+            n_val = 0
+            n_test = 1
+        else:  # n == 1
+            # Put single sample in train
+            n_train = 1
+            n_val = 0
+            n_test = 0
         
         # Shuffle files
         random.shuffle(files)
