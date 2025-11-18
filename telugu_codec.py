@@ -56,14 +56,14 @@ class VectorQuantizer(nn.Module):
         self.n_quantizers = num_quantizers
         self.commitment_weight = commitment_weight
         
-        # Learnable codebooks
+        # Learnable codebooks - initialize with smaller values
         self.codebooks = nn.Parameter(
-            torch.randn(num_quantizers, codebook_size, dim)
+            torch.randn(num_quantizers, codebook_size, dim) * 0.01
         )
         
         # EMA for codebook updates
         self.register_buffer('ema_cluster_size', torch.zeros(num_quantizers, codebook_size))
-        self.register_buffer('ema_w', torch.randn(num_quantizers, codebook_size, dim))
+        self.register_buffer('ema_w', torch.randn(num_quantizers, codebook_size, dim) * 0.01)
         self.ema_decay = ema_decay
     
     def quantize(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -96,20 +96,24 @@ class VectorQuantizer(nn.Module):
             quantized_step = F.embedding(indices, self.codebooks[q])
             quantized += quantized_step
             
-            # Commitment loss
+            # Commitment loss with clamping
             commitment_loss = F.mse_loss(residual.detach(), quantized_step)
+            commitment_loss = torch.clamp(commitment_loss, 0, 10.0)  # Prevent explosion
             losses.append(commitment_loss * self.commitment_weight)
+            
+            # EMA codebook update (training only) - use quantized_step not residual
+            if self.training:
+                self._update_codebook_ema(q, quantized_step.detach(), indices)
             
             # Update residual
             residual = residual - quantized_step.detach()
-            
-            # EMA codebook update (training only)
-            if self.training:
-                self._update_codebook_ema(q, residual.detach(), indices)
         
         quantized = rearrange(quantized, 'b t d -> b d t')
         codes = torch.stack(codes, dim=1)  # [B, Q, T]
-        total_loss = sum(losses)
+        total_loss = sum(losses) if losses else torch.tensor(0.0, device=z.device)
+        
+        # Clamp total VQ loss
+        total_loss = torch.clamp(total_loss, 0, 10.0)
         
         # Straight-through estimator
         quantized = z.reshape(B, D, T) + (quantized - z.reshape(B, D, T)).detach()
@@ -388,18 +392,22 @@ class TeluCodec(nn.Module):
         target = target[..., :min_len]
         pred = pred[..., :min_len]
         
+        # Cast to float32 for STFT to avoid FP16 issues
+        target_f32 = target.float()
+        pred_f32 = pred.float()
+        
         loss = 0
         for n_fft in [512, 1024, 2048]:
-            # Create Hann window to prevent spectral leakage
-            window = torch.hann_window(n_fft, device=target.device)
+            # Create Hann window in float32 to match input
+            window = torch.hann_window(n_fft, device=target.device, dtype=torch.float32)
             
-            # Compute spectrograms with proper window
+            # Compute spectrograms with proper window in float32
             target_spec = torch.stft(
-                target.squeeze(1), n_fft=n_fft, 
+                target_f32.squeeze(1), n_fft=n_fft, 
                 hop_length=n_fft//4, window=window, return_complex=True
             ).abs()
             pred_spec = torch.stft(
-                pred.squeeze(1), n_fft=n_fft,
+                pred_f32.squeeze(1), n_fft=n_fft,
                 hop_length=n_fft//4, window=window, return_complex=True
             ).abs()
             
@@ -410,10 +418,10 @@ class TeluCodec(nn.Module):
             # L1 + L2 loss on magnitude
             loss += F.l1_loss(pred_spec, target_spec) + F.mse_loss(pred_spec, target_spec)
         
-        # Clamp loss to prevent NaN
+        # Clamp loss to prevent NaN and cast back to original dtype
         loss = torch.clamp(loss / 3, 0, 100.0)
         
-        return loss
+        return loss.to(target.dtype)
     
     @torch.no_grad()
     def encode_streaming(self, audio_chunk: torch.Tensor) -> Optional[torch.Tensor]:
