@@ -177,9 +177,11 @@ class CodecTrainer:
                 self.use_wandb = False
         
         # Compile model for faster training (PyTorch 2.0+)
-        if hasattr(torch, 'compile'):
-            self.model = torch.compile(self.model, mode="reduce-overhead")
-            logger.info("Model compiled with torch.compile()")
+        # Disabled due to dynamic shape handling issues with decoder output
+        # if hasattr(torch, 'compile'):
+        #     self.model = torch.compile(self.model, mode="reduce-overhead")
+        #     logger.info("Model compiled with torch.compile()")
+        logger.info("torch.compile disabled for compatibility")
     
     def train_epoch(self, epoch: int):
         """Train for one epoch"""

@@ -332,6 +332,9 @@ class TeluCodec(nn.Module):
         Returns:
             Dictionary with reconstructed audio and losses
         """
+        # Store original length
+        original_length = audio.shape[-1]
+        
         # Encode
         z = self.encoder(audio)
         
@@ -340,6 +343,16 @@ class TeluCodec(nn.Module):
         
         # Decode  
         audio_recon = self.decoder(z_q)
+        
+        # Match output size to input size
+        if audio_recon.shape[-1] != original_length:
+            if audio_recon.shape[-1] > original_length:
+                # Crop if too long
+                audio_recon = audio_recon[..., :original_length]
+            else:
+                # Pad if too short
+                padding = original_length - audio_recon.shape[-1]
+                audio_recon = F.pad(audio_recon, (0, padding))
         
         # Reconstruction loss
         recon_loss = F.l1_loss(audio_recon, audio)
@@ -361,6 +374,11 @@ class TeluCodec(nn.Module):
     
     def _perceptual_loss(self, target: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
         """Multi-scale spectral loss for perceptual quality"""
+        # Ensure same length for STFT
+        min_len = min(target.shape[-1], pred.shape[-1])
+        target = target[..., :min_len]
+        pred = pred[..., :min_len]
+        
         loss = 0
         for n_fft in [512, 1024, 2048]:
             # Compute spectrograms
