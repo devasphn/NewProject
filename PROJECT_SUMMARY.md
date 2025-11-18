@@ -39,7 +39,11 @@ NewProject/
     └── PROJECT_SUMMARY.md         # This file
 ```
 
-**Total**: 17 production-ready files ✅
+**Total**: 18 production-ready files ✅
+
+### Recently Added (Fix for Transformers 4.45.0)
+- ✅ UPDATE_GUIDE.md - Fix documentation for Llama issue
+- ✅ fix_and_run.sh - Quick update script
 
 ---
 

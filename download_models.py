@@ -44,18 +44,32 @@ def download_models():
         print("⚠ Warning: HF_TOKEN not set. Trying without token...")
     
     try:
-        tokenizer = AutoTokenizer.from_pretrained(LLAMA_MODEL, token=hf_token)
+        # Download tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(
+            LLAMA_MODEL, 
+            token=hf_token,
+            trust_remote_code=True
+        )
+        
+        # Download model with proper config
         model = AutoModelForCausalLM.from_pretrained(
             LLAMA_MODEL,
             token=hf_token,
-            torch_dtype=torch.float16
+            torch_dtype=torch.float16,
+            device_map=None,  # Don't auto-map to devices during download
+            low_cpu_mem_usage=True,
+            trust_remote_code=True
         )
+        
+        # Save to disk
         tokenizer.save_pretrained(f"{MODELS_DIR}/llama")
         model.save_pretrained(f"{MODELS_DIR}/llama")
         print("✓ Llama downloaded successfully")
     except Exception as e:
         print(f"✗ Error downloading Llama: {e}")
         print("Make sure to set HF_TOKEN environment variable")
+        import traceback
+        traceback.print_exc()
         return False
     
     # 3. Download SpeechT5 (TTS)

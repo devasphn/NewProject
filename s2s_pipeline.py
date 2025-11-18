@@ -40,13 +40,21 @@ class TeluguS2SPipeline:
         
         # 2. LLM (Llama)
         print("Loading Llama LLM...")
-        self.llm_tokenizer = AutoTokenizer.from_pretrained(f"{MODELS_DIR}/llama")
+        self.llm_tokenizer = AutoTokenizer.from_pretrained(
+            f"{MODELS_DIR}/llama",
+            trust_remote_code=True
+        )
         self.llm = AutoModelForCausalLM.from_pretrained(
             f"{MODELS_DIR}/llama",
             torch_dtype=torch.float16,
-            device_map="auto"
+            device_map="auto",
+            trust_remote_code=True
         )
         self.llm.eval()
+        
+        # Ensure pad_token is set
+        if self.llm_tokenizer.pad_token is None:
+            self.llm_tokenizer.pad_token = self.llm_tokenizer.eos_token
         
         # 3. TTS (SpeechT5 - Telugu fine-tuned if available)
         print("Loading SpeechT5 TTS...")
