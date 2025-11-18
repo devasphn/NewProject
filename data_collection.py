@@ -69,32 +69,43 @@ class TeluguDataCollector:
                                 max_duration: int = 7200) -> Optional[Path]:
         """Download audio from YouTube using yt-dlp"""
         try:
-            output_path = self.raw_dir / f"{output_name}.wav"
+            # Create output directory for this source
+            source_dir = self.raw_dir / output_name
+            source_dir.mkdir(exist_ok=True)
             
-            if output_path.exists():
-                logger.info(f"Already downloaded: {output_name}")
-                return output_path
+            logger.info(f"Downloading from: {url}")
             
-            logger.info(f"Downloading: {url}")
-            
+            # Download latest videos from channel (max 10 videos, max 2 hours each)
             cmd = [
                 "yt-dlp",
                 "-x",
                 "--audio-format", "wav",
                 "--audio-quality", "0",
-                "-o", str(output_path),
-                "--quiet",
-                "--no-warnings",
+                "-o", str(source_dir / "%(title)s.%(ext)s"),
+                "--max-downloads", "10",
+                "--match-filter", f"duration < {max_duration}",
+                "--no-playlist" if "/watch?v=" in url else "",
                 url
             ]
             
+            # Remove empty string from cmd
+            cmd = [c for c in cmd if c]
+            
+            logger.info(f"Running: {' '.join(cmd[:8])}...")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                logger.info(f"✓ Downloaded: {output_name}")
-                return output_path
+                # Check if any files were downloaded
+                downloaded_files = list(source_dir.glob("*.wav"))
+                if downloaded_files:
+                    logger.info(f"✓ Downloaded {len(downloaded_files)} files for {output_name}")
+                    return source_dir
+                else:
+                    logger.warning(f"No files downloaded for {output_name}")
+                    return None
             else:
-                logger.error(f"Failed to download {url}")
+                logger.error(f"yt-dlp failed for {url}")
+                logger.error(f"Error: {result.stderr[:200]}")
                 return None
                 
         except Exception as e:
