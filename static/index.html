@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telugu S2S Voice Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 36px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            font-weight: 600;
+            font-size: 18px;
+        }
+        .status.connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        button {
+            width: 100%;
+            padding: 18px;
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 10px 0;
+        }
+        #startBtn {
+            background: #10b981;
+            color: white;
+        }
+        #startBtn:hover { background: #059669; transform: translateY(-2px); }
+        #stopBtn {
+            background: #ef4444;
+            color: white;
+            display: none;
+        }
+        #stopBtn:hover { background: #dc2626; transform: translateY(-2px); }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .metric {
+            background: #f3f4f6;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .metric-label {
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .transcript {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            min-height: 90px;
+        }
+        .transcript-title {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 10px;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+        .transcript-content {
+            color: #1f2937;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            color: #9ca3af;
+            font-size: 12px;
+        }
+        .target-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Telugu S2S Voice Agent</h1>
+        <div class="subtitle">Ultra-Low Latency Speech-to-Speech AI | RunPod RTX A6000</div>
+        
+        <div id="status" class="status disconnected">● Disconnected</div>
+        
+        <button id="startBtn">🎙️ Start Conversation</button>
+        <button id="stopBtn">⏹️ Stop</button>
+        
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value" id="latency">-</div>
+                <div class="metric-label">Total Latency (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="asr">-</div>
+                <div class="metric-label">ASR (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="llm">-</div>
+                <div class="metric-label">LLM (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="tts">-</div>
+                <div class="metric-label">TTS (ms)</div>
+            </div>
+        </div>
+        
+        <div class="transcript">
+            <div class="transcript-title">📝 Your Speech (Telugu):</div>
+            <div class="transcript-content" id="inputText">Waiting for input...</div>
+        </div>
+        
+        <div class="transcript">
+            <div class="transcript-title">💬 AI Response:</div>
+            <div class="transcript-content" id="outputText">Waiting for response...</div>
+        </div>
+        
+        <div class="footer">
+            Target: <400ms <span class="target-badge">RTX A6000</span> | Built for MD Demo
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+
+        startBtn.addEventListener('click', start);
+        stopBtn.addEventListener('click', stop);
+
+        async function start() {
+            try {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+                
+                ws.onopen = () => {
+                    status.textContent = '● Connected';
+                    status.className = 'status connected';
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'block';
+                };
+
+                ws.onmessage = handleResponse;
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    status.textContent = '● Error';
+                    status.className = 'status disconnected';
+                };
+
+                audioContext = new AudioContext({ sampleRate: 16000 });
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
+                });
+
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                processor.onaudioprocess = (e) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        sendAudio(inputData);
+                    }
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+            } catch (error) {
+                alert('Failed to start: ' + error.message);
+            }
+        }
+
+        function sendAudio(audioData) {
+            const buffer = new Float32Array(audioData);
+            const bytes = new Uint8Array(buffer.buffer);
+            const binary = String.fromCharCode(...bytes);
+            const base64 = btoa(binary);
+
+            ws.send(JSON.stringify({
+                type: 'audio',
+                audio: base64
+            }));
+        }
+
+        function handleResponse(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'response') {
+                document.getElementById('inputText').textContent = data.input_text || 'No transcription';
+                document.getElementById('outputText').textContent = data.output_text || 'No response';
+                
+                const latency = data.latency_ms;
+                document.getElementById('latency').textContent = latency;
+                document.getElementById('latency').style.color = latency < 400 ? '#10b981' : '#ef4444';
+                
+                if (data.breakdown) {
+                    document.getElementById('asr').textContent = data.breakdown.asr_ms;
+                    document.getElementById('llm').textContent = data.breakdown.llm_ms;
+                    document.getElementById('tts').textContent = data.breakdown.tts_ms;
+                }
+
+                playAudio(data.audio);
+            }
+        }
+
+        async function playAudio(base64Audio) {
+            try {
+                const binaryString = atob(base64Audio);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                const float32Array = new Float32Array(bytes.buffer);
+                const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
+                audioBuffer.getChannelData(0).set(float32Array);
+                
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+                source.start();
+            } catch (error) {
+                console.error('Failed to play audio:', error);
+            }
+        }
+
+        function stop() {
+            if (processor) processor.disconnect();
+            if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+            if (ws) ws.close();
+            if (audioContext) audioContext.close();
+            
+            status.textContent = '● Disconnected';
+            status.className = 'status disconnected';
+            startBtn.style.display = 'block';
+            stopBtn.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
