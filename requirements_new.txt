@@ -24,8 +24,10 @@ numpy==1.24.3
 einops==0.7.0
 vector-quantize-pytorch==1.14.24
 
+# Flash Attention 2 - INSTALL SEPARATELY AFTER BASE REQUIREMENTS
+# pip install flash-attn --no-build-isolation
+
 # Optimization
-flash-attn==2.5.0  # Requires CUDA 11.6+
 deepspeed==0.14.0
 apex  # NVIDIA Apex for mixed precision
 triton==2.2.0  # For Flash Attention

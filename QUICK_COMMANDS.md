@@ -38,11 +38,14 @@ git push origin main
 # System setup
 apt-get update && apt-get install -y ffmpeg git vim tmux htop nvtop wget curl build-essential libsndfile1 sox screen
 
-# Clone repo
-cd /workspace && git clone https://github.com/devasphn/NewProject.git telugu-s2s && cd telugu-s2s
+# Clone repo  
+cd /workspace && git clone https://github.com/devasphn/NewProject.git && cd NewProject
 
-# Install Python
-pip install --upgrade pip && pip install -r requirements_new.txt && pip install flash-attn --no-build-isolation
+# Install Python packages (flash-attn AFTER requirements)
+pip install --upgrade pip
+pip install -r requirements_new.txt
+pip install flash-attn --no-build-isolation
+pip install websockets==12.0 python-multipart==0.0.9 uvloop==0.19.0
 
 # Environment
 cat > .env << 'EOF'
@@ -95,18 +98,18 @@ EOF
 
 ---
 
-## 🌐 A6000 INFERENCE POD
+## 🎯 A6000 INFERENCE POD
 
-### Setup:
+### Initial Setup:
 ```bash
-# System
-apt-get update && apt-get install -y ffmpeg git vim
-
 # Clone
-cd /workspace && git clone https://github.com/devasphn/NewProject.git telugu-s2s && cd telugu-s2s
+cd /workspace && git clone https://github.com/devasphn/NewProject.git && cd NewProject
 
-# Install
-pip install --upgrade pip && pip install -r requirements_new.txt && pip install flash-attn --no-build-isolation
+# Install packages (flash-attn AFTER requirements)
+pip install --upgrade pip
+pip install -r requirements_new.txt
+pip install flash-attn --no-build-isolation
+pip install websockets==12.0 python-multipart==0.0.9 uvloop==0.19.0
 ```
 
 ### Download Models:

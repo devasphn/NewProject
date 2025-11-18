@@ -182,22 +182,23 @@ ls -la
 # Upgrade pip
 pip install --upgrade pip
 
-# Install core requirements
+# Install core requirements (without flash-attn)
 pip install -r requirements_new.txt
 
-# Install Flash Attention (critical for <150ms)
+# Install Flash Attention SEPARATELY (critical for <150ms)
+# This must be installed AFTER torch is already installed
 pip install flash-attn --no-build-isolation
 
 # Additional packages for advanced features
 pip install \
     websockets==12.0 \
     python-multipart==0.0.9 \
-    uvloop==0.19.0 \
-    pyannote.audio==3.1.1
+    uvloop==0.19.0
 
-# Verify
+# Verify installations
 python -c "import torch; print(f'PyTorch: {torch.__version__}')"
 python -c "import flash_attn; print('Flash Attention: Installed')"
+python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
 ```
 
 ### Step 6: Environment Variables
