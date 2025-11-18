@@ -31,10 +31,10 @@ class AudioDataset(Dataset):
         self.segment_length = segment_length
         self.sample_rate = sample_rate
         
-        # Find all audio files
+        # Find all audio files (search recursively in subdirectories)
         self.audio_files = []
         for ext in ['*.wav', '*.mp3', '*.flac']:
-            self.audio_files.extend(list(self.data_dir.glob(ext)))
+            self.audio_files.extend(list(self.data_dir.rglob(ext)))  # rglob searches recursively
         
         if not self.audio_files:
             raise ValueError(f"No audio files found in {data_dir}")
