@@ -1,0 +1,399 @@
+# PRODUCTION-GRADE Telugu Data Sources
+# Target: 200-500 hours of diverse Telugu speech
+# 10+ distinct speakers with varied accents
+# Storage: 80-180GB YouTube videos → 200-500 hours of 16kHz audio
+
+data_collection_plan:
+  total_target_hours: 500
+  total_storage_budget: "180GB (YouTube videos)"
+  audio_output_size: "~15GB (16kHz mono WAV)"
+  minimum_speakers: 10
+  accent_diversity: "Telangana, Andhra, Urban, Rural"
+  age_diversity: "20-60 years"
+  gender_balance: "50% male, 50% female"
+
+# ============================================================================
+# TIER 1: HIGH-PRIORITY CHANNELS (Download ALL videos)
+# ============================================================================
+
+tier1_podcasts:
+  # Speaker 1: VK (Male, 30s, Urban Hyderabad accent)
+  raw_talks_vk:
+    channel_name: "Raw Talks with VK"
+    channel_url: "https://www.youtube.com/@RawTalksWithVK"
+    download_mode: "ALL_VIDEOS"  # Changed from 36 to ALL
+    content_type: "Long-form podcasts (1.5-2 hours each)"
+    audio_quality: "Professional studio quality"
+    estimated_total_videos: 200+
+    estimated_hours: 300+
+    speaker_profile:
+      id: "VK_Male_30s"
+      gender: "male"
+      age: "30-35"
+      accent: "Urban Hyderabad"
+      voice_quality: "Clear, professional"
+    priority: 1
+    
+  # Speaker 2-5: News anchors (Mixed gender, 30-50s, Formal Telugu)
+  news_tier1:
+    - channel_name: "10TV Telugu"
+      channel_url: "https://www.youtube.com/@10TVNewsTelugu"
+      download_mode: "RECENT_500_VIDEOS"
+      content_type: "News bulletins, debates, interviews"
+      estimated_hours: 250+
+      speakers:
+        - id: "10TV_Anchor1_Female"
+          gender: "female"
+          age: "35-40"
+          accent: "Telangana formal"
+        - id: "10TV_Anchor2_Male"
+          gender: "male"
+          age: "40-45"
+          accent: "Andhra formal"
+      priority: 1
+      
+    - channel_name: "Sakshi TV"
+      channel_url: "https://www.youtube.com/@SakshiTV"
+      download_mode: "RECENT_500_VIDEOS"
+      content_type: "24/7 news, prime time shows"
+      estimated_hours: 250+
+      speakers:
+        - id: "Sakshi_Anchor1_Female"
+          gender: "female"
+          age: "30-35"
+          accent: "Andhra Pradesh formal"
+        - id: "Sakshi_Anchor2_Male"
+          gender: "male"
+          age: "45-50"
+          accent: "Coastal Andhra"
+      priority: 1
+      
+    - channel_name: "TV9 Telugu"
+      channel_url: "https://www.youtube.com/@TV9TeluguLive"
+      download_mode: "RECENT_500_VIDEOS"
+      content_type: "Breaking news, discussions"
+      estimated_hours: 250+
+      speakers:
+        - id: "TV9_Female_Young"
+          gender: "female"
+          age: "25-30"
+          accent: "Urban Telugu"
+      priority: 1
+
+# ============================================================================
+# TIER 2: SPEAKER DIVERSITY CHANNELS (Add NEW speakers)
+# ============================================================================
+
+tier2_speaker_diversity:
+  # Speaker 6: Male narrator (40s, Literary Telugu)
+  audiobooks:
+    channel_name: "Telugu Audio Books"
+    channel_url: "https://www.youtube.com/@TeluguAudioBooks1"
+    download_mode: "ALL_VIDEOS"
+    content_type: "Literary narration, stories"
+    estimated_videos: 150+
+    estimated_hours: 200+
+    speaker_profile:
+      id: "Narrator_Male_40s"
+      gender: "male"
+      age: "40-45"
+      accent: "Classical Telugu"
+      voice_quality: "Deep, articulate"
+    priority: 2
+    
+  # Speaker 7: Female cultural content (30s, Soft Telugu)
+  voice_of_telugu:
+    channel_name: "Voice of Telugu"
+    channel_url: "https://www.youtube.com/@VoiceOfTeluguofficial"
+    download_mode: "ALL_VIDEOS"
+    content_type: "Cultural stories, traditions"
+    estimated_hours: 80+
+    speaker_profile:
+      id: "Cultural_Female_30s"
+      gender: "female"
+      age: "30-35"
+      accent: "Traditional Andhra"
+    priority: 2
+  
+  # Speaker 8-9: Educational content (Young speakers, Casual Telugu)
+  educational_channels:
+    - channel_name: "Telugu Connects"
+      channel_url: "https://www.youtube.com/@TeluguConnects_"
+      download_mode: "ALL_VIDEOS"
+      content_type: "Self-help, productivity"
+      estimated_hours: 50+
+      speaker_profile:
+        id: "Educator_Male_25s"
+        gender: "male"
+        age: "25-30"
+        accent: "Young Urban Telugu"
+      priority: 2
+      
+    - channel_name: "My Village Show"
+      channel_url: "https://www.youtube.com/@MyVillageShowOfficial"
+      download_mode: "RECENT_200_VIDEOS"
+      content_type: "Village comedy, rural life"
+      estimated_hours: 100+
+      speaker_profile:
+        id: "Rural_Male_30s"
+        gender: "male"
+        age: "30-35"
+        accent: "Rural Telangana"
+      priority: 2
+      notes: "Authentic rural Telugu accent"
+
+# ============================================================================
+# TIER 3: ADDITIONAL DIVERSITY (NEW channels for 10+ speakers)
+# ============================================================================
+
+tier3_additional_speakers:
+  # Speaker 10: Female young tech/lifestyle
+  tech_lifestyle:
+    channel_name: "Sai Pallavi Telugu Talks"
+    channel_url: "https://www.youtube.com/@SaiPallaviTeluguTalks"
+    download_mode: "RECENT_100_VIDEOS"
+    content_type: "Lifestyle, interviews"
+    estimated_hours: 30+
+    speaker_profile:
+      id: "Young_Female_Tech"
+      gender: "female"
+      age: "22-27"
+      accent: "Modern Urban Telugu"
+    priority: 3
+  
+  # Speaker 11: Male mature business/finance
+  business_content:
+    channel_name: "Telugu Business Updates"
+    channel_url: "https://www.youtube.com/@TeluguBusinessNews"
+    download_mode: "RECENT_150_VIDEOS"
+    content_type: "Business news, analysis"
+    estimated_hours: 50+
+    speaker_profile:
+      id: "Business_Male_45s"
+      gender: "male"
+      age: "45-50"
+      accent: "Professional Telugu"
+    priority: 3
+  
+  # Speaker 12: Female spiritual/devotional
+  spiritual_content:
+    channel_name: "Bhakti TV"
+    channel_url: "https://www.youtube.com/@BhaktiTV"
+    download_mode: "RECENT_100_VIDEOS"
+    content_type: "Devotional, spiritual talks"
+    estimated_hours: 40+
+    speaker_profile:
+      id: "Spiritual_Female_40s"
+      gender: "female"
+      age: "38-43"
+      accent: "Traditional devotional Telugu"
+    priority: 3
+
+  # Speaker 13-14: Comedy/Entertainment (Emotional expressions)
+  entertainment:
+    - channel_name: "Extra Jabardasth"
+      channel_url: "https://www.youtube.com/@ExtraJabardasth"
+      download_mode: "RECENT_100_VIDEOS"
+      content_type: "Comedy skits"
+      estimated_hours: 50+
+      speaker_profile:
+        id: "Comedian_Male_28s"
+        gender: "male"
+        age: "28-32"
+        accent: "Casual Hyderabad"
+      priority: 3
+      notes: "Natural emotional expressions"
+      
+    - channel_name: "Suma Kanakala"
+      channel_url: "https://www.youtube.com/@SumaKanakalaOfficial"
+      download_mode: "RECENT_100_VIDEOS"
+      content_type: "Celebrity interviews, shows"
+      estimated_hours: 40+
+      speaker_profile:
+        id: "Host_Female_35s"
+        gender: "female"
+        age: "35-40"
+        accent: "Professional Andhra"
+      priority: 3
+
+# ============================================================================
+# ACCENT-SPECIFIC CHANNELS (For regional diversity)
+# ============================================================================
+
+accent_diversity_channels:
+  # Telangana accent
+  telangana_accent:
+    channel_name: "V6 News Telugu"
+    channel_url: "https://www.youtube.com/@V6NewsTelugu"
+    download_mode: "RECENT_200_VIDEOS"
+    content_type: "Telangana regional news"
+    estimated_hours: 80+
+    accent_focus: "Telangana dialect"
+    priority: 2
+  
+  # Coastal Andhra accent
+  coastal_andhra:
+    channel_name: "Gemini TV"
+    channel_url: "https://www.youtube.com/@GeminiTV"
+    download_mode: "RECENT_150_VIDEOS"
+    content_type: "Entertainment, serials"
+    estimated_hours: 60+
+    accent_focus: "Coastal Andhra"
+    priority: 2
+  
+  # Rayalaseema accent
+  rayalaseema:
+    channel_name: "Kurnool News"
+    channel_url: "https://www.youtube.com/@KurnoolNewsChannel"
+    download_mode: "RECENT_100_VIDEOS"
+    content_type: "Regional news"
+    estimated_hours: 30+
+    accent_focus: "Rayalaseema dialect"
+    priority: 3
+
+# ============================================================================
+# DOWNLOAD CONFIGURATION
+# ============================================================================
+
+download_config:
+  storage_allocation:
+    tier1_channels: "100GB (primary speakers)"
+    tier2_channels: "50GB (diversity)"
+    tier3_channels: "30GB (additional variety)"
+    total_budget: "180GB"
+  
+  quality_settings:
+    youtube_format: "best[height<=720]"  # 720p max to save space
+    audio_extraction:
+      codec: "pcm_s16le"
+      sample_rate: 16000
+      channels: 1
+      bitrate: "256k"
+  
+  filtering:
+    min_video_duration: 60  # seconds
+    max_video_duration: 7200  # 2 hours
+    skip_shorts: true
+    skip_music_videos: true
+    language_filter: "Telugu"
+  
+  rate_limiting:
+    max_concurrent_downloads: 3
+    delay_between_videos: 2  # seconds
+    max_daily_downloads: 500
+
+# ============================================================================
+# SPEAKER SUMMARY
+# ============================================================================
+
+speaker_inventory:
+  total_speakers: 15+
+  gender_breakdown:
+    male: 8
+    female: 7
+  age_distribution:
+    "20-30": 3
+    "30-40": 6
+    "40-50": 5
+    "50+": 1
+  accent_coverage:
+    - "Urban Hyderabad (Telangana)"
+    - "Urban Hyderabad (Modern)"
+    - "Rural Telangana"
+    - "Coastal Andhra Pradesh"
+    - "Formal Andhra Pradesh"
+    - "Rayalaseema"
+    - "Classical/Literary Telugu"
+    - "Devotional Telugu"
+  voice_characteristics:
+    - "Professional news anchor (clear, formal)"
+    - "Casual conversational (podcasts)"
+    - "Literary narration (articulate)"
+    - "Rural casual (authentic)"
+    - "Young urban (modern slang)"
+    - "Entertainment (expressive)"
+    - "Business/technical (professional)"
+
+# ============================================================================
+# ESTIMATED OUTPUT
+# ============================================================================
+
+estimated_output:
+  raw_youtube_downloads: "180GB (video files)"
+  after_audio_extraction: "~15-20GB (16kHz mono WAV)"
+  total_speech_hours: "450-550 hours"
+  usable_after_filtering: "300-400 hours (silence removal, quality check)"
+  final_dataset_size: "200-300 hours of clean Telugu speech"
+  
+  quality_distribution:
+    excellent_quality: "60% (studio, broadcast)"
+    good_quality: "30% (casual podcasts)"
+    acceptable_quality: "10% (outdoor, interviews)"
+
+# ============================================================================
+# COLLECTION TIMELINE
+# ============================================================================
+
+collection_timeline:
+  phase_1_tier1:
+    duration: "48 hours"
+    channels: "Raw Talks VK, 10TV, Sakshi TV, TV9"
+    expected_download: "100GB"
+    expected_hours: "200 hours"
+  
+  phase_2_tier2:
+    duration: "24 hours"
+    channels: "Audiobooks, Voice of Telugu, Educational, Rural"
+    expected_download: "50GB"
+    expected_hours: "100 hours"
+  
+  phase_3_tier3:
+    duration: "24 hours"
+    channels: "Accent diversity, Entertainment, Specialized"
+    expected_download: "30GB"
+    expected_hours: "60 hours"
+  
+  processing_time:
+    audio_extraction: "12 hours"
+    silence_removal: "8 hours"
+    quality_filtering: "4 hours"
+    speaker_classification: "6 hours"
+    total_processing: "30 hours"
+  
+  total_project_duration: "5-6 days"
+
+# ============================================================================
+# VERIFICATION & QUALITY ASSURANCE
+# ============================================================================
+
+quality_checks:
+  automated:
+    - "SNR > 15 dB"
+    - "No clipping (max < 0.99)"
+    - "Minimum duration: 2 seconds"
+    - "Maximum silence: 30%"
+    - "Language detection: Telugu"
+  
+  manual_sampling:
+    - "Listen to 10 random samples per speaker"
+    - "Verify accent classification"
+    - "Check audio-transcript alignment"
+    - "Validate speaker ID consistency"
+
+# ============================================================================
+# LEGAL & ETHICAL COMPLIANCE
+# ============================================================================
+
+legal_notes:
+  - "All sources: Public YouTube content"
+  - "Purpose: Educational/Research (codec development)"
+  - "No commercial redistribution of source material"
+  - "Model outputs will not reproduce copyrighted content"
+  - "Fair use for training neural network models"
+  - "Attribution maintained in metadata"
+  
+usage_restrictions:
+  - "Training data only - not for public distribution"
+  - "Codec model can be distributed"
+  - "No derivative audio content distribution"
+  - "Research and development use only"
