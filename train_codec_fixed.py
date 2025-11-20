@@ -73,11 +73,23 @@ class AudioDataset(Dataset):
             padding = self.segment_length - waveform.shape[1]
             waveform = F.pad(waveform, (0, padding))
         
-        # CRITICAL: Normalize to [-1, 1] range (standard for audio codecs)
-        # This matches the tanh output range of the decoder
-        max_val = waveform.abs().max()
-        if max_val > 0:
-            waveform = waveform / max_val * 0.95  # Scale to 0.95 to avoid clipping
+        # CRITICAL FIX: Normalize to FIXED dB level like DAC/EnCodec
+        # This ensures ALL samples have consistent amplitude relative to decoder output
+        # Previous bug: per-sample normalization created variable scales that decoder couldn't learn
+        
+        # Compute RMS (root mean square) for loudness
+        rms = torch.sqrt(torch.mean(waveform ** 2))
+        
+        if rms > 1e-8:  # Avoid division by zero for silence
+            # Target RMS for -16 dB relative to full scale
+            # -16 dB = 10^(-16/20) ≈ 0.158
+            target_rms = 0.158
+            waveform = waveform * (target_rms / rms)
+            
+            # Ensure we don't clip (rare but possible with high peaks)
+            max_val = waveform.abs().max()
+            if max_val > 1.0:
+                waveform = waveform / max_val * 0.95
         
         return waveform
 
