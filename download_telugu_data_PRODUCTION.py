@@ -173,9 +173,11 @@ class TeluguDataCollector:
             "--ignore-errors",
             "--no-overwrites",
             "--download-archive", str(channel_output / "downloaded.txt"),
-            "--sleep-interval", "2",  # Rate limiting
-            "--max-sleep-interval", "5",
-            "--concurrent-fragments", "3",
+            "--sleep-interval", "10",  # Rate limiting: 10 sec between videos
+            "--max-sleep-interval", "30",  # Up to 30 sec random delay
+            "--sleep-requests", "1",  # 1 sec between requests
+            "--max-downloads", "50",  # Download 50 at a time, then pause
+            "--concurrent-fragments", "2",  # Reduce concurrent connections
         ]
         
         if playlist_items:
