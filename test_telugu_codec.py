@@ -181,7 +181,7 @@ def test_codec():
                 "avg_snr_db": round(avg_snr, 2),
                 "avg_compression_ratio": round(avg_compression, 1),
                 "quality": quality,
-                "poc_ready": avg_snr >= 15
+                "poc_ready": bool(avg_snr >= 15)
             },
             "individual_results": results
         }, f, indent=2)
