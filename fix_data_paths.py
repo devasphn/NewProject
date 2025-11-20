@@ -52,21 +52,17 @@ def fix_data_paths():
     for item in train_files:
         # Handle both string and dict formats
         if isinstance(item, dict):
-            filename = item.get('file', '')
+            filename = item.get('source', item.get('file', ''))
         else:
             filename = item
         
         if not filename:
             continue
             
-        # Try to find the file
-        src_file = None
-        for f in src_dir.rglob('*.wav'):
-            if f.name == Path(filename).name or str(f).endswith(filename):
-                src_file = f
-                break
+        # Construct full path from relative path
+        src_file = src_dir / filename
         
-        if src_file and src_file.exists():
+        if src_file.exists():
             dest = train_out / src_file.name
             if not dest.exists():
                 shutil.copy2(src_file, dest)
@@ -75,6 +71,8 @@ def fix_data_paths():
                     print(f"  Copied {train_copied} files...")
         else:
             train_missing += 1
+            if train_missing <= 5:
+                print(f"  Missing: {filename}")
     
     print(f"✅ Train: {train_copied} copied, {train_missing} missing")
     print()
@@ -85,20 +83,17 @@ def fix_data_paths():
     val_missing = 0
     for item in val_files:
         if isinstance(item, dict):
-            filename = item.get('file', '')
+            filename = item.get('source', item.get('file', ''))
         else:
             filename = item
         
         if not filename:
             continue
             
-        src_file = None
-        for f in src_dir.rglob('*.wav'):
-            if f.name == Path(filename).name or str(f).endswith(filename):
-                src_file = f
-                break
+        # Construct full path from relative path
+        src_file = src_dir / filename
         
-        if src_file and src_file.exists():
+        if src_file.exists():
             dest = val_out / src_file.name
             if not dest.exists():
                 shutil.copy2(src_file, dest)
@@ -115,20 +110,17 @@ def fix_data_paths():
     test_missing = 0
     for item in test_files:
         if isinstance(item, dict):
-            filename = item.get('file', '')
+            filename = item.get('source', item.get('file', ''))
         else:
             filename = item
         
         if not filename:
             continue
             
-        src_file = None
-        for f in src_dir.rglob('*.wav'):
-            if f.name == Path(filename).name or str(f).endswith(filename):
-                src_file = f
-                break
+        # Construct full path from relative path
+        src_file = src_dir / filename
         
-        if src_file and src_file.exists():
+        if src_file.exists():
             dest = test_out / src_file.name
             if not dest.exists():
                 shutil.copy2(src_file, dest)
