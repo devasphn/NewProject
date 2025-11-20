@@ -113,7 +113,9 @@ def classify_audio_file(file_path: Path, metadata: Dict = None) -> int:
 def prepare_speaker_dataset(
     data_dir: str,
     output_dir: str,
-    copy_files: bool = False
+    copy_files: bool = False,
+    no_balance: bool = False,
+    min_samples: int = 5
 ) -> Dict:
     """
     Prepare speaker-labeled dataset
@@ -122,6 +124,8 @@ def prepare_speaker_dataset(
         data_dir: Source data directory
         output_dir: Output directory for organized data
         copy_files: Whether to copy files or just create mapping
+        no_balance: If True, use all files without balancing
+        min_samples: Minimum samples per speaker for balancing
     
     Returns:
         Dictionary with dataset statistics
@@ -192,7 +196,11 @@ def prepare_speaker_dataset(
     logger.info(f"Speaker distribution (before balancing): {speaker_counts}")
     
     # Create balanced splits (function handles empty speakers internally)
-    balanced_mapping = balance_speakers(file_mapping, 0)  # target_count unused, calculated internally
+    if no_balance:
+        logger.info("Balancing disabled - using all files")
+        balanced_mapping = file_mapping
+    else:
+        balanced_mapping = balance_speakers(file_mapping, min_samples)
     
     # Save mapping
     mapping_file = output_path / "speaker_mapping.json"
@@ -222,14 +230,14 @@ def prepare_speaker_dataset(
 
 def balance_speakers(
     file_mapping: List[Dict],
-    target_count: int
+    min_samples: int = 5
 ) -> List[Dict]:
     """
     Balance dataset to have equal samples per speaker
     
     Args:
         file_mapping: List of file mappings
-        target_count: Target number of samples per speaker
+        min_samples: Minimum samples per speaker (will use min of this and actual min)
     
     Returns:
         Balanced file mapping
@@ -248,8 +256,10 @@ def balance_speakers(
         logger.warning("No speakers have any samples!")
         return []
     
-    # Use minimum of active speakers, but ensure at least some samples
-    actual_target = max(1, min(len(files) for files in active_speakers.values()))
+    # Use min_samples as target, but cap at minimum available
+    # This prevents over-aggressive balancing with very small speaker counts
+    min_available = min(len(files) for files in active_speakers.values())
+    actual_target = min(min_samples, min_available)
     
     logger.info(f"Balancing {len(active_speakers)} speakers with target {actual_target} samples each")
     
@@ -363,13 +373,19 @@ def main():
                         help="Output directory for speaker data")
     parser.add_argument("--copy_files", action="store_true",
                         help="Copy files to speaker directories")
+    parser.add_argument("--no_balance", action="store_true",
+                        help="Disable speaker balancing (use all files)")
+    parser.add_argument("--min_samples", type=int, default=5,
+                        help="Minimum samples per speaker for balancing (default: 5)")
     args = parser.parse_args()
     
     # Prepare dataset
     stats = prepare_speaker_dataset(
         args.data_dir,
         args.output_dir,
-        args.copy_files
+        args.copy_files,
+        no_balance=args.no_balance,
+        min_samples=args.min_samples
     )
     
     # Print statistics
