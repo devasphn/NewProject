@@ -167,6 +167,7 @@ class TeluguDataCollector:
             "yt-dlp",
             "--format", "best[height<=720]",  # 720p max to save space
             "--output", str(channel_output / "%(title)s.%(ext)s"),
+            "--extractor-args", "youtube:player_client=android,web",  # Bypass JS requirement
             "--write-info-json",
             "--write-description",
             "--write-thumbnail",
