@@ -167,7 +167,8 @@ class TeluguDataCollector:
             "yt-dlp",
             "--format", "best[height<=720]",  # 720p max to save space
             "--output", str(channel_output / "%(title)s.%(ext)s"),
-            "--extractor-args", "youtube:player_client=android,web",  # Bypass JS requirement
+            # Note: Not using android client as it conflicts with cookies
+            # Will use default web client with cookies for authentication
             "--write-info-json",
             "--write-description",
             "--write-thumbnail",
@@ -183,13 +184,25 @@ class TeluguDataCollector:
         
         # Add cookies to bypass YouTube bot detection
         # CRITICAL: Export cookies from signed-in YouTube browser session
-        # Save as: /workspace/cookies/youtube_cookies.txt
-        cookies_path = Path("/workspace/cookies/youtube_cookies.txt")
-        if cookies_path.exists():
-            cmd.extend(["--cookies", str(cookies_path)])
-            self.log("  ✓ Using cookies for authentication")
-        else:
-            self.log("  ⚠️  WARNING: No cookies found at /workspace/cookies/youtube_cookies.txt")
+        # Try multiple possible cookie locations
+        cookie_locations = [
+            Path("/workspace/cookies/youtube_cookies.txt"),
+            Path("/workspace/NewProject/cookies/youtube_cookies.txt"),
+        ]
+        
+        cookies_found = False
+        for cookies_path in cookie_locations:
+            if cookies_path.exists():
+                cmd.extend(["--cookies", str(cookies_path)])
+                self.log(f"  ✓ Using cookies from: {cookies_path}")
+                cookies_found = True
+                break
+        
+        if not cookies_found:
+            self.log("  ⚠️  WARNING: No cookies found!")
+            self.log("  ⚠️  Checked locations:")
+            for loc in cookie_locations:
+                self.log(f"     - {loc}")
             self.log("  ⚠️  Downloads may fail due to bot detection!")
             self.log("  ⚠️  Export cookies from browser: See FIX_YOUTUBE_BOT_DETECTION.md")
         
