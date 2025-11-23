@@ -56,7 +56,7 @@
 ```
 NewProject/
 ├── s2s_transformer.py          # S2S model architecture
-├── telugu_codec.py             # Neural codec
+├── telugu_codec_fixed.py       # Neural codec (CORRECT - has SnakeActivation)
 ├── speaker_embeddings.py       # Voice system
 ├── context_manager.py          # Conversation memory
 ├── streaming_server_advanced.py # WebSocket server

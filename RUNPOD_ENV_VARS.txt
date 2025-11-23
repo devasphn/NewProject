@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Telugu S2S Production - RunPod Environment Variables
+# ═══════════════════════════════════════════════════════════════════════
+# Copy-paste these into RunPod Template "Environment Variables" section
+# Format: KEY=VALUE (one per line)
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── REQUIRED (Must set before deploying) ──────────────────────────────
+
+HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Get from: https://huggingface.co/settings/tokens
+# Type: Write access
+# Used for: Downloading WhisperX, models
+
+WANDB_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Get from: https://wandb.ai/authorize
+# Used for: Training monitoring and logging
+
+# ── PROJECT CONFIGURATION ──────────────────────────────────────────────
+
+PROJECT_NAME=telugu-s2s-production
+WANDB_PROJECT=telugu-s2s
+WANDB_ENTITY=YOUR_WANDB_USERNAME
+
+# ── PATHS ──────────────────────────────────────────────────────────────
+
+DATA_DIR=/workspace/telugu_data
+MODEL_DIR=/workspace/models
+CHECKPOINT_DIR=/workspace/checkpoints
+LOG_DIR=/workspace/logs
+
+# ── CUDA OPTIMIZATION ──────────────────────────────────────────────────
+
+CUDA_VISIBLE_DEVICES=0
+PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+TOKENIZERS_PARALLELISM=false
+FLASH_ATTENTION_FORCE_BUILD=0
+
+# Enable TF32 for faster training on A100/H100
+NVIDIA_TF32_OVERRIDE=1
+TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1
+
+# ── DISTRIBUTED TRAINING (if using multiple GPUs) ──────────────────────
+
+MASTER_ADDR=localhost
+MASTER_PORT=29500
+WORLD_SIZE=1
+RANK=0
+
+# ── OPTIONAL (Advanced users) ──────────────────────────────────────────
+
+# YouTube API Key (if rate-limited)
+# YOUTUBE_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Node.js version (for web UI)
+NODE_VERSION=20
+
+# Disable pip cache to save space
+PIP_NO_CACHE_DIR=1
+
+# Python buffering (for real-time logs)
+PYTHONUNBUFFERED=1
+
+# ═══════════════════════════════════════════════════════════════════════
+# NOTES:
+# 1. Replace placeholder values (xxx...) with your actual keys
+# 2. Get HF_TOKEN from: https://huggingface.co/settings/tokens
+# 3. Get WANDB_API_KEY from: https://wandb.ai/authorize
+# 4. Keep these keys SECRET - never commit to Git
+# ═══════════════════════════════════════════════════════════════════════

@@ -18,7 +18,7 @@ import argparse
 from typing import Dict, List, Tuple
 
 from speaker_embeddings import SpeakerEmbeddingSystem, SpeakerDataAugmentation
-from telugu_codec import TeluCodec
+from telugu_codec_fixed import TeluCodec
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

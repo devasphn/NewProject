@@ -16,7 +16,7 @@ import logging
 from typing import Dict, List, Tuple
 
 # Import all components
-from telugu_codec import TeluCodec
+from telugu_codec_fixed import TeluCodec
 from s2s_transformer import TeluguS2STransformer, S2SConfig, EMOTION_IDS, SPEAKER_IDS
 from speaker_embeddings import SpeakerEmbeddingSystem
 from context_manager import ConversationContextManager

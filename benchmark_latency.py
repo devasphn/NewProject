@@ -13,7 +13,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple
 
-from telugu_codec import TeluCodec
+from telugu_codec_fixed import TeluCodec
 from s2s_transformer import TeluguS2STransformer, S2SConfig
 from speaker_embeddings import SpeakerEmbeddingSystem
 

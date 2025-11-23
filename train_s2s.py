@@ -21,7 +21,7 @@ import argparse
 
 # Import our models
 from s2s_transformer import TeluguS2STransformer, S2SConfig, EMOTION_IDS, SPEAKER_IDS
-from telugu_codec import TeluCodec
+from telugu_codec_fixed import TeluCodec
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
