@@ -180,6 +180,18 @@ class TeluguDataCollector:
             "--concurrent-fragments", "2",  # Reduce concurrent connections
         ]
         
+        # Add cookies to bypass YouTube bot detection
+        # CRITICAL: Export cookies from signed-in YouTube browser session
+        # Save as: /workspace/cookies/youtube_cookies.txt
+        cookies_path = Path("/workspace/cookies/youtube_cookies.txt")
+        if cookies_path.exists():
+            cmd.extend(["--cookies", str(cookies_path)])
+            self.log("  ✓ Using cookies for authentication")
+        else:
+            self.log("  ⚠️  WARNING: No cookies found at /workspace/cookies/youtube_cookies.txt")
+            self.log("  ⚠️  Downloads may fail due to bot detection!")
+            self.log("  ⚠️  Export cookies from browser: See FIX_YOUTUBE_BOT_DETECTION.md")
+        
         if playlist_items:
             cmd.extend(["--playlist-items", playlist_items])
         
