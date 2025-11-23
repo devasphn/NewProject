@@ -162,13 +162,41 @@ class TeluguDataCollector:
         channel_output = self.raw_video_dir / tier / channel_slug
         channel_output.mkdir(parents=True, exist_ok=True)
         
-        # Build yt-dlp command
-        cmd = [
-            "yt-dlp",
+        # Find cookies FIRST before building command
+        # CRITICAL: Export cookies from signed-in YouTube browser session
+        cookie_locations = [
+            Path("/workspace/cookies/youtube_cookies.txt"),
+            Path("/workspace/NewProject/cookies/youtube_cookies.txt"),
+        ]
+        
+        cookies_found = False
+        cookies_path = None
+        for path in cookie_locations:
+            if path.exists():
+                cookies_path = path
+                cookies_found = True
+                self.log(f"  ✓ Using cookies from: {cookies_path}")
+                break
+        
+        if not cookies_found:
+            self.log("  ⚠️  WARNING: No cookies found!")
+            self.log("  ⚠️  Checked locations:")
+            for loc in cookie_locations:
+                self.log(f"     - {loc}")
+            self.log("  ⚠️  Downloads may fail due to bot detection!")
+            self.log("  ⚠️  Export cookies from browser: See FIX_YOUTUBE_BOT_DETECTION.md")
+        
+        # Build yt-dlp command with cookies FIRST (critical for auth)
+        cmd = ["yt-dlp"]
+        
+        # Add cookies immediately after yt-dlp command (highest priority)
+        if cookies_found:
+            cmd.extend(["--cookies", str(cookies_path)])
+        
+        # Now add all other options
+        cmd.extend([
             "--format", "best[height<=720]",  # 720p max to save space
             "--output", str(channel_output / "%(title)s.%(ext)s"),
-            # Note: Not using android client as it conflicts with cookies
-            # Will use default web client with cookies for authentication
             "--write-info-json",
             "--write-description",
             "--write-thumbnail",
@@ -180,31 +208,7 @@ class TeluguDataCollector:
             "--sleep-requests", "1",  # 1 sec between requests
             "--max-downloads", "50",  # Download 50 at a time, then pause
             "--concurrent-fragments", "2",  # Reduce concurrent connections
-        ]
-        
-        # Add cookies to bypass YouTube bot detection
-        # CRITICAL: Export cookies from signed-in YouTube browser session
-        # Try multiple possible cookie locations
-        cookie_locations = [
-            Path("/workspace/cookies/youtube_cookies.txt"),
-            Path("/workspace/NewProject/cookies/youtube_cookies.txt"),
-        ]
-        
-        cookies_found = False
-        for cookies_path in cookie_locations:
-            if cookies_path.exists():
-                cmd.extend(["--cookies", str(cookies_path)])
-                self.log(f"  ✓ Using cookies from: {cookies_path}")
-                cookies_found = True
-                break
-        
-        if not cookies_found:
-            self.log("  ⚠️  WARNING: No cookies found!")
-            self.log("  ⚠️  Checked locations:")
-            for loc in cookie_locations:
-                self.log(f"     - {loc}")
-            self.log("  ⚠️  Downloads may fail due to bot detection!")
-            self.log("  ⚠️  Export cookies from browser: See FIX_YOUTUBE_BOT_DETECTION.md")
+        ])
         
         if playlist_items:
             cmd.extend(["--playlist-items", playlist_items])
@@ -219,7 +223,12 @@ class TeluguDataCollector:
         
         # Execute download
         self.log(f"Starting download...")
-        self.log(f"Command: {' '.join(cmd[:5])}...")  # Log first few args
+        # Log full command for debugging (mask sensitive cookies)
+        cmd_preview = ' '.join(cmd[:10]) + '...'
+        self.log(f"Command preview: {cmd_preview}")
+        if cookies_found:
+            self.log(f"  ✓ Cookies argument included in command")
+        self.log(f"  Full command has {len(cmd)} arguments")
         
         try:
             start_time = time.time()
