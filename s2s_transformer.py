@@ -24,12 +24,12 @@ except ImportError:
 @dataclass
 class S2SConfig:
     """Configuration for S2S model"""
-    # Model dimensions
-    hidden_dim: int = 768
-    num_heads: int = 12
-    num_encoder_layers: int = 12
-    num_decoder_layers: int = 12
-    ffn_dim: int = 3072
+    # Model dimensions - MUST be divisible: hidden_dim % num_heads == 0
+    hidden_dim: int = 512  # For POC - smaller model
+    num_heads: int = 8     # 512/8 = 64 head_dim (clean division!)
+    num_encoder_layers: int = 6
+    num_decoder_layers: int = 6
+    ffn_dim: int = 2048    # 4x hidden_dim
     
     # Conformer specific
     conv_kernel_size: int = 31
@@ -51,6 +51,13 @@ class S2SConfig:
     # Training
     dropout: float = 0.1
     use_flash_attn: bool = True
+    
+    def __post_init__(self):
+        """Validate config after initialization"""
+        assert self.hidden_dim % self.num_heads == 0, \
+            f"hidden_dim ({self.hidden_dim}) must be divisible by num_heads ({self.num_heads})"
+        assert self.hidden_dim % self.num_quantizers == 0, \
+            f"hidden_dim ({self.hidden_dim}) must be divisible by num_quantizers ({self.num_quantizers})"
 
 class RotaryPositionalEmbedding(nn.Module):
     """RoPE for better position encoding in streaming"""

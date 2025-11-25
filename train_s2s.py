@@ -159,8 +159,9 @@ class S2STrainer:
         logger.info("Initializing S2S Transformer...")
         model_config = S2SConfig(
             hidden_dim=config.get("hidden_dim", 512),  # Smaller for POC
-            num_encoder_layers=config.get("num_encoder_layers", 6),  # Smaller for POC
-            num_decoder_layers=config.get("num_decoder_layers", 6),  # Smaller for POC
+            num_heads=config.get("num_heads", 8),      # MUST divide hidden_dim evenly!
+            num_encoder_layers=config.get("num_encoder_layers", 6),
+            num_decoder_layers=config.get("num_decoder_layers", 6),
             use_flash_attn=FLASH_AVAILABLE
         )
         self.model = TeluguS2STransformer(model_config).to(self.device)
@@ -476,7 +477,9 @@ def main():
         "experiment_name": args.experiment_name,
         
         # Model config - SMALLER for POC (faster training)
-        "hidden_dim": 512,           # Smaller: 512 vs 768
+        # CRITICAL: hidden_dim MUST be divisible by num_heads AND num_quantizers(8)
+        "hidden_dim": 512,           # 512 / 8 heads = 64, 512 / 8 quantizers = 64
+        "num_heads": 8,              # MUST divide hidden_dim evenly!
         "num_encoder_layers": 6,     # Smaller: 6 vs 12
         "num_decoder_layers": 6,     # Smaller: 6 vs 12
         
