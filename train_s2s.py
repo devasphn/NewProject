@@ -280,23 +280,22 @@ class S2STrainer:
                 with torch.no_grad():
                     input_codes = self.codec.encode(waveforms)  # [B, Q, T']
                     target_codes = input_codes.clone()  # Same for reconstruction
+                    # CRITICAL: Keep as long (int64) for embedding lookup
                     input_codes = input_codes.long()
                     target_codes = target_codes.long()
                 
-                # Mixed precision forward
-                with autocast():
-                    loss = self.model(input_codes, target_codes, speaker_ids, emotion_ids)
+                # Forward pass WITHOUT mixed precision (codes are integers, not floats)
+                # Mixed precision causes "Half overflow" with integer embeddings
+                loss = self.model(input_codes, target_codes, speaker_ids, emotion_ids)
                 
-                # Backward
+                # Backward (no scaler needed without mixed precision)
                 self.optimizer.zero_grad(set_to_none=True)
-                self.scaler.scale(loss).backward()
+                loss.backward()
                 
                 # Gradient clipping
-                self.scaler.unscale_(self.optimizer)
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                self.optimizer.step()
                 self.scheduler.step()
                 
                 # Logging
@@ -346,8 +345,8 @@ class S2STrainer:
                 with torch.no_grad():
                     input_codes = self.codec.encode(waveforms).long()
                     target_codes = input_codes.clone()
-                
-                with autocast():
+                    
+                    # Forward without mixed precision
                     loss = self.model(input_codes, target_codes, speaker_ids, emotion_ids)
                 
                 total_loss += loss.item()
