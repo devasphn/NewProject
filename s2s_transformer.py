@@ -147,9 +147,10 @@ class MultiHeadAttention(nn.Module):
         q, k, v = qkv.unbind(dim=2)
         
         if use_cache and cache is not None:
-            # Concatenate with cached K, V
-            k = torch.cat([cache['k'], k], dim=1)
-            v = torch.cat([cache['v'], v], dim=1)
+            # Concatenate with cached K, V (if they exist)
+            if cache.get('k') is not None:
+                k = torch.cat([cache['k'], k], dim=1)
+                v = torch.cat([cache['v'], v], dim=1)
             cache['k'] = k
             cache['v'] = v
         
