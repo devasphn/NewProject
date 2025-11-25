@@ -97,11 +97,10 @@ class S2SDataset(Dataset):
             waveform = self._load_audio(audio_path)
             
             # For S2S training, we use same audio as input/output (reconstruction)
-            # with different augmentations to learn the transformation
             input_audio = waveform
             target_audio = waveform.clone()
             
-            # Encode with codec (on CPU to avoid memory issues)
+            # Encode with codec
             with torch.no_grad():
                 # Move to codec device temporarily
                 input_audio_dev = input_audio.to(self.device)
@@ -110,24 +109,24 @@ class S2SDataset(Dataset):
                 input_codes = self.codec.encode(input_audio_dev)
                 target_codes = self.codec.encode(target_audio_dev)
                 
-                # Move back to CPU
-                input_codes = input_codes.cpu()
-                target_codes = target_codes.cpu()
+                # CRITICAL: Ensure codes are long (integer) tensors!
+                input_codes = input_codes.long().cpu()
+                target_codes = target_codes.long().cpu()
             
             # Random emotion for training diversity
             emotion_id = torch.randint(0, 7, (1,)).item()
             
             return {
-                "input_codes": input_codes.squeeze(0),
-                "target_codes": target_codes.squeeze(0),
+                "input_codes": input_codes.squeeze(0),  # [Q, T]
+                "target_codes": target_codes.squeeze(0),  # [Q, T]
                 "speaker_id": speaker_id,
                 "emotion_id": emotion_id
             }
             
         except Exception as e:
             logger.warning(f"Error loading {audio_path}: {e}")
-            # Return dummy data on error
-            dummy_codes = torch.zeros(8, 50)  # [num_quantizers, seq_len]
+            # Return dummy data on error - MUST BE LONG TENSORS!
+            dummy_codes = torch.zeros(8, 50, dtype=torch.long)  # [num_quantizers, seq_len]
             return {
                 "input_codes": dummy_codes,
                 "target_codes": dummy_codes,
@@ -289,47 +288,52 @@ class S2STrainer:
         
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch}")
         for batch_idx, batch in enumerate(pbar):
-            # Move to device
-            input_codes = batch["input_codes"].to(self.device)
-            target_codes = batch["target_codes"].to(self.device)
-            speaker_ids = batch["speaker_id"].to(self.device)
-            emotion_ids = batch["emotion_id"].to(self.device)
-            
-            # Mixed precision forward
-            with autocast():
-                loss = self.model(input_codes, target_codes, speaker_ids, emotion_ids)
-            
-            # Backward
-            self.optimizer.zero_grad(set_to_none=True)
-            self.scaler.scale(loss).backward()
-            
-            # Gradient clipping
-            self.scaler.unscale_(self.optimizer)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.scheduler.step()
-            
-            # Logging
-            total_loss += loss.item()
-            self.global_step += 1
-            
-            if batch_idx % 10 == 0:
-                pbar.set_postfix({
-                    "loss": loss.item(),
-                    "lr": self.scheduler.get_last_lr()[0]
-                })
-            
-            if self.global_step % 100 == 0 and self.use_wandb:
-                try:
-                    wandb.log({
-                        "train/loss": loss.item(),
-                        "train/lr": self.scheduler.get_last_lr()[0],
-                        "train/step": self.global_step
+            try:
+                # Move to device with correct types
+                input_codes = batch["input_codes"].long().to(self.device)
+                target_codes = batch["target_codes"].long().to(self.device)
+                speaker_ids = batch["speaker_id"].long().to(self.device)
+                emotion_ids = batch["emotion_id"].long().to(self.device)
+                
+                # Mixed precision forward
+                with autocast():
+                    loss = self.model(input_codes, target_codes, speaker_ids, emotion_ids)
+                
+                # Backward
+                self.optimizer.zero_grad(set_to_none=True)
+                self.scaler.scale(loss).backward()
+                
+                # Gradient clipping
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.scheduler.step()
+                
+                # Logging
+                total_loss += loss.item()
+                self.global_step += 1
+                
+                if batch_idx % 10 == 0:
+                    pbar.set_postfix({
+                        "loss": loss.item(),
+                        "lr": self.scheduler.get_last_lr()[0]
                     })
-                except:
-                    pass
+                
+                if self.global_step % 100 == 0 and self.use_wandb:
+                    try:
+                        wandb.log({
+                            "train/loss": loss.item(),
+                            "train/lr": self.scheduler.get_last_lr()[0],
+                            "train/step": self.global_step
+                        })
+                    except:
+                        pass
+            
+            except Exception as e:
+                logger.warning(f"Batch {batch_idx} error: {e}")
+                continue
         
         return total_loss / max(len(self.train_loader), 1)
     
