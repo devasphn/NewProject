@@ -387,9 +387,11 @@ HTML_CONTENT = """
         let chunks = 0;
         let latencies = [];
         
-        // Audio playback
+        // Audio playback with proper buffering
         let playbackQueue = [];
         let isPlaying = false;
+        let nextPlayTime = 0;
+        let playbackContext = null;
         
         // Visualizer
         let analyser = null;
@@ -468,8 +470,13 @@ HTML_CONTENT = """
                     updateStatus('Connected - Streaming', true, true);
                     isStreaming = true;
                     
+                    // Reset playback timing
+                    nextPlayTime = audioContext.currentTime;
+                    
                     document.getElementById('startBtn').disabled = true;
                     document.getElementById('stopBtn').disabled = false;
+                    
+                    log('🔊 Audio playback enabled - speak now!', 'success');
                     
                     // Start visualization
                     drawVisualizer();
@@ -481,10 +488,13 @@ HTML_CONTENT = """
                         const data = JSON.parse(event.data);
                         if (data.latency) {
                             updateStats(data.latency);
-                            log(`Processed chunk - Latency: ${data.latency.toFixed(1)}ms`, 'latency');
+                            // Only log every 10th chunk to reduce spam
+                            if (chunks % 10 === 0) {
+                                log(`Processed ${chunks} chunks - Avg Latency: ${data.avg_latency.toFixed(1)}ms`, 'latency');
+                            }
                         }
                     } else {
-                        // Binary audio data
+                        // Binary audio data - play it!
                         playAudio(event.data);
                     }
                 };
@@ -567,15 +577,37 @@ HTML_CONTENT = """
                 const int16Data = new Int16Array(arrayBuffer);
                 const float32Data = int16ToFloat32(int16Data);
                 
+                // Create audio buffer
                 const audioBuffer = audioContext.createBuffer(1, float32Data.length, SAMPLE_RATE);
                 audioBuffer.getChannelData(0).set(float32Data);
                 
+                // Create source
                 const source = audioContext.createBufferSource();
                 source.buffer = audioBuffer;
-                source.connect(audioContext.destination);
-                source.start();
+                
+                // Create gain node for volume control
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = 1.5;  // Boost volume slightly
+                
+                source.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Schedule playback with proper timing
+                const currentTime = audioContext.currentTime;
+                if (nextPlayTime < currentTime) {
+                    nextPlayTime = currentTime;
+                }
+                
+                source.start(nextPlayTime);
+                nextPlayTime += audioBuffer.duration;
+                
+                // Log first few plays
+                if (chunks <= 5) {
+                    log(`Playing audio chunk (${float32Data.length} samples)`, 'success');
+                }
             } catch (error) {
                 console.error('Playback error:', error);
+                log(`Playback error: ${error.message}`, 'error');
             }
         }
         
