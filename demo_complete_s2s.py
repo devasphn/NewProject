@@ -50,23 +50,41 @@ class TeluguS2SDemo:
         return codec
     
     def _load_s2s(self, path: str) -> TeluguS2STransformer:
-        config = S2SConfig(
-            hidden_dim=512,
-            num_heads=8,
-            num_encoder_layers=6,
-            num_decoder_layers=6,
-            use_flash_attn=False
-        )
+        checkpoint = torch.load(path, map_location=self.device)
+        
+        # Get config from checkpoint if available
+        if 'config' in checkpoint:
+            saved_config = checkpoint['config']
+            config = S2SConfig(
+                hidden_dim=saved_config.get('hidden_dim', 512),
+                num_heads=saved_config.get('num_heads', 8),
+                num_encoder_layers=saved_config.get('num_encoder_layers', 6),
+                num_decoder_layers=saved_config.get('num_decoder_layers', 6),
+                use_flash_attn=False  # Disable for inference
+            )
+        else:
+            config = S2SConfig(
+                hidden_dim=512,
+                num_heads=8,
+                num_encoder_layers=6,
+                num_decoder_layers=6,
+                use_flash_attn=False
+            )
+        
         model = TeluguS2STransformer(config).to(self.device)
         
-        checkpoint = torch.load(path, map_location=self.device)
-        if 's2s_state_dict' in checkpoint:
+        # Load state dict from correct key
+        if 'model_state' in checkpoint:
+            model.load_state_dict(checkpoint['model_state'])
+        elif 's2s_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['s2s_state_dict'])
         elif 'model_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['model_state_dict'])
         else:
             model.load_state_dict(checkpoint)
+        
         model.eval()
+        logger.info(f"Loaded S2S from epoch {checkpoint.get('epoch', 'unknown')}")
         return model
     
     def _load_speakers(self, path: str) -> dict:
