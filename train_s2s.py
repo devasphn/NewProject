@@ -38,16 +38,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class S2SDataset(Dataset):
-    """Dataset for S2S training - works with available Telugu audio data"""
+    """Dataset for S2S training - works with available Telugu audio data
+    NOTE: Does NOT do codec encoding here to avoid CUDA multiprocessing issues
+    """
     
-    def __init__(self, data_dir: str, codec_model: TeluCodec, split: str = "train", 
+    def __init__(self, data_dir: str, codec_model: TeluCodec = None, split: str = "train", 
                  segment_length: int = 32000, sample_rate: int = 16000):
         self.data_dir = Path(data_dir)
         self.split = split
-        self.codec = codec_model
         self.segment_length = segment_length
         self.sample_rate = sample_rate
-        self.device = next(codec_model.parameters()).device
+        # Don't store codec in dataset - will be done in training loop
         
         # Find all audio files recursively
         self.audio_files = []
@@ -93,43 +94,23 @@ class S2SDataset(Dataset):
         speaker_id = self.speaker_ids[idx]
         
         try:
-            # Load audio
+            # Load audio - return raw waveform (codec encoding done in training loop)
             waveform = self._load_audio(audio_path)
-            
-            # For S2S training, we use same audio as input/output (reconstruction)
-            input_audio = waveform
-            target_audio = waveform.clone()
-            
-            # Encode with codec
-            with torch.no_grad():
-                # Move to codec device temporarily
-                input_audio_dev = input_audio.to(self.device)
-                target_audio_dev = target_audio.to(self.device)
-                
-                input_codes = self.codec.encode(input_audio_dev)
-                target_codes = self.codec.encode(target_audio_dev)
-                
-                # CRITICAL: Ensure codes are long (integer) tensors!
-                input_codes = input_codes.long().cpu()
-                target_codes = target_codes.long().cpu()
             
             # Random emotion for training diversity
             emotion_id = torch.randint(0, 7, (1,)).item()
             
             return {
-                "input_codes": input_codes.squeeze(0),  # [Q, T]
-                "target_codes": target_codes.squeeze(0),  # [Q, T]
+                "waveform": waveform,  # [1, T] raw audio
                 "speaker_id": speaker_id,
                 "emotion_id": emotion_id
             }
             
         except Exception as e:
-            logger.warning(f"Error loading {audio_path}: {e}")
-            # Return dummy data on error - MUST BE LONG TENSORS!
-            dummy_codes = torch.zeros(8, 50, dtype=torch.long)  # [num_quantizers, seq_len]
+            # Return dummy waveform on error
+            dummy_waveform = torch.zeros(1, self.segment_length)
             return {
-                "input_codes": dummy_codes,
-                "target_codes": dummy_codes,
+                "waveform": dummy_waveform,
                 "speaker_id": 0,
                 "emotion_id": 0
             }
@@ -188,10 +169,10 @@ class S2STrainer:
         total_params = sum(p.numel() for p in self.model.parameters())
         logger.info(f"S2S Model parameters: {total_params/1e6:.2f}M")
         
-        # Datasets - use codec on device
+        # Datasets - don't pass codec (encoding done in training loop)
         logger.info("Loading datasets...")
-        self.train_dataset = S2SDataset(config["data_dir"], self.codec, "train")
-        self.val_dataset = S2SDataset(config["data_dir"], self.codec, "validation")
+        self.train_dataset = S2SDataset(config["data_dir"], split="train")
+        self.val_dataset = S2SDataset(config["data_dir"], split="validation")
         
         if len(self.train_dataset) == 0:
             raise ValueError(f"No training data found in {config['data_dir']}")
@@ -289,11 +270,17 @@ class S2STrainer:
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch}")
         for batch_idx, batch in enumerate(pbar):
             try:
-                # Move to device with correct types
-                input_codes = batch["input_codes"].long().to(self.device)
-                target_codes = batch["target_codes"].long().to(self.device)
+                # Get waveforms and encode with codec on GPU
+                waveforms = batch["waveform"].to(self.device)  # [B, 1, T]
                 speaker_ids = batch["speaker_id"].long().to(self.device)
                 emotion_ids = batch["emotion_id"].long().to(self.device)
+                
+                # Encode audio with codec (on GPU, in main process)
+                with torch.no_grad():
+                    input_codes = self.codec.encode(waveforms)  # [B, Q, T']
+                    target_codes = input_codes.clone()  # Same for reconstruction
+                    input_codes = input_codes.long()
+                    target_codes = target_codes.long()
                 
                 # Mixed precision forward
                 with autocast():
@@ -349,10 +336,15 @@ class S2STrainer:
         
         for batch in tqdm(self.val_loader, desc="Validation"):
             try:
-                input_codes = batch["input_codes"].to(self.device)
-                target_codes = batch["target_codes"].to(self.device)
-                speaker_ids = batch["speaker_id"].to(self.device)
-                emotion_ids = batch["emotion_id"].to(self.device)
+                # Get waveforms and encode with codec
+                waveforms = batch["waveform"].to(self.device)
+                speaker_ids = batch["speaker_id"].long().to(self.device)
+                emotion_ids = batch["emotion_id"].long().to(self.device)
+                
+                # Encode with codec
+                with torch.no_grad():
+                    input_codes = self.codec.encode(waveforms).long()
+                    target_codes = input_codes.clone()
                 
                 with autocast():
                     loss = self.model(input_codes, target_codes, speaker_ids, emotion_ids)
@@ -371,7 +363,9 @@ class S2STrainer:
             test_latencies = []
             # Use a sample from training data
             sample_batch = next(iter(self.train_loader))
-            test_input = sample_batch["input_codes"][:1].to(self.device)
+            test_waveform = sample_batch["waveform"][:1].to(self.device)
+            with torch.no_grad():
+                test_input = self.codec.encode(test_waveform).long()
             test_speaker = torch.tensor([0], device=self.device)
             test_emotion = torch.tensor([0], device=self.device)
             
