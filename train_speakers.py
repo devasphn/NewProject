@@ -33,30 +33,79 @@ class SpeakerDataset(Dataset):
         self.codec = TeluCodec()
         if Path(codec_path).exists():
             checkpoint = torch.load(codec_path, map_location='cpu')
-            self.codec.load_state_dict(checkpoint['model_state'])
+            # Handle different checkpoint formats
+            if 'codec_state_dict' in checkpoint:
+                self.codec.load_state_dict(checkpoint['codec_state_dict'])
+            elif 'model_state' in checkpoint:
+                self.codec.load_state_dict(checkpoint['model_state'])
+            elif 'state_dict' in checkpoint:
+                self.codec.load_state_dict(checkpoint['state_dict'])
+            else:
+                # Direct state dict (no wrapper)
+                self.codec.load_state_dict(checkpoint)
+            logger.info(f"Loaded codec from {codec_path}")
         self.codec.eval()
         
-        # Speaker mapping based on data sources
+        # Updated speaker mapping for our actual data sources
+        # We have: OpenSLR (male/female), IndicTTS (multiple speakers)
         self.speaker_mapping = {
-            "raw_talks_male": 0,      # Young male podcaster
-            "10tv_male": 1,           # Mature male news anchor
-            "raw_talks_female": 2,    # Young female podcaster
-            "sakshi_female": 3        # Professional female news
+            "openslr_male": 0,        # OpenSLR Telugu male
+            "openslr_female": 1,      # OpenSLR Telugu female  
+            "indictts_speaker1": 2,   # IndicTTS primary speaker
+            "indictts_speaker2": 3    # IndicTTS secondary speaker
         }
         
-        # Load file paths
+        # Load file paths from actual data directories
         self.samples = []
-        for source, speaker_id in self.speaker_mapping.items():
-            source_pattern = source.split('_')[0]  # Get base name
+        
+        # 1. OpenSLR Telugu data (male/female directories)
+        openslr_dir = self.data_dir / "openslr"
+        if openslr_dir.exists():
+            # Male speaker
+            for pattern in ["*male*", "*Male*", "te_in_male*"]:
+                for subdir in openslr_dir.glob(pattern):
+                    if subdir.is_dir():
+                        audio_files = list(subdir.rglob("*.wav"))
+                        for audio_file in audio_files[:500]:
+                            self.samples.append((audio_file, 0))  # male
             
-            # Find matching directories
-            for subdir in self.data_dir.glob(f"*{source_pattern}*"):
-                if subdir.is_dir():
-                    audio_files = list(subdir.glob("*.wav")) + list(subdir.glob("*.mp3"))
-                    for audio_file in audio_files[:100]:  # Limit per speaker
-                        self.samples.append((audio_file, speaker_id))
+            # Female speaker  
+            for pattern in ["*female*", "*Female*", "te_in_female*"]:
+                for subdir in openslr_dir.glob(pattern):
+                    if subdir.is_dir():
+                        audio_files = list(subdir.rglob("*.wav"))
+                        for audio_file in audio_files[:500]:
+                            self.samples.append((audio_file, 1))  # female
+        
+        # 2. IndicTTS Telugu data
+        indictts_dir = self.data_dir / "indictts"
+        if indictts_dir.exists():
+            audio_dir = indictts_dir / "audio"
+            if audio_dir.exists():
+                audio_files = list(audio_dir.glob("*.wav"))
+                # Split IndicTTS files between two "virtual" speakers
+                # (Since they may have multiple speakers in dataset)
+                mid_point = len(audio_files) // 2
+                for i, audio_file in enumerate(audio_files[:1000]):
+                    speaker_id = 2 if i < mid_point else 3
+                    self.samples.append((audio_file, speaker_id))
+        
+        # 3. Also search recursively in case of different structure
+        if len(self.samples) < 100:
+            logger.warning("Few samples found with expected structure, searching recursively...")
+            all_wavs = list(self.data_dir.rglob("*.wav"))
+            # Assign speakers based on file index (round-robin)
+            for i, audio_file in enumerate(all_wavs[:2000]):
+                speaker_id = i % 4
+                self.samples.append((audio_file, speaker_id))
+        
+        # Count samples per speaker
+        speaker_counts = {}
+        for _, sid in self.samples:
+            speaker_counts[sid] = speaker_counts.get(sid, 0) + 1
         
         logger.info(f"Loaded {len(self.samples)} samples for {len(self.speaker_mapping)} speakers")
+        logger.info(f"Samples per speaker: {speaker_counts}")
     
     def __len__(self):
         return len(self.samples)
