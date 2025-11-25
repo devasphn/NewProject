@@ -162,7 +162,7 @@ class S2STrainer:
             num_heads=config.get("num_heads", 8),      # MUST divide hidden_dim evenly!
             num_encoder_layers=config.get("num_encoder_layers", 6),
             num_decoder_layers=config.get("num_decoder_layers", 6),
-            use_flash_attn=FLASH_AVAILABLE
+            use_flash_attn=False  # Disabled - requires FP16 which causes overflow with embeddings
         )
         self.model = TeluguS2STransformer(model_config).to(self.device)
         
