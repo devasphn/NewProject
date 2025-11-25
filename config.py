@@ -1,5 +1,6 @@
 """
 Configuration for Telugu S2S Voice Agent
+Updated: Recovery Plan V1 - Using FREE datasets (no YouTube scraping)
 """
 
 # GPU Configuration (RTX A6000)
@@ -7,11 +8,25 @@ GPU_NAME = "RTX A6000"
 GPU_MEMORY = 48  # GB
 GPU_COST_PER_HOUR = 0.49  # USD
 
-# Model Paths
+# Base Paths
 WORKSPACE_DIR = "/workspace/NewProject"
 MODELS_DIR = f"{WORKSPACE_DIR}/models"
-DATA_DIR = f"{WORKSPACE_DIR}/telugu_data"
 OUTPUT_DIR = f"{WORKSPACE_DIR}/outputs"
+
+# Data Paths (FREE DATASETS - No YouTube scraping!)
+SPEECH_DATA_DIR = "/workspace/speech_data"          # General speech for codec
+TELUGU_DATA_DIR = "/workspace/telugu_data"          # Telugu-specific data
+CODEC_TRAINING_DIR = SPEECH_DATA_DIR                # LibriSpeech + LJSpeech
+
+# Dataset Paths
+LIBRISPEECH_DIR = f"{SPEECH_DATA_DIR}/librispeech/LibriSpeech/train-clean-100"
+LJSPEECH_DIR = f"{SPEECH_DATA_DIR}/LJSpeech-1.1"
+OPENSLR_TELUGU_DIR = f"{TELUGU_DATA_DIR}/openslr"
+INDICTTS_TELUGU_DIR = f"{TELUGU_DATA_DIR}/indictts"
+COMMON_VOICE_DIR = f"{TELUGU_DATA_DIR}/common_voice"
+
+# Legacy (for backward compatibility)
+DATA_DIR = TELUGU_DATA_DIR
 
 # Model Configuration
 WHISPER_MODEL = "openai/whisper-large-v3"
