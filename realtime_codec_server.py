@@ -455,8 +455,9 @@ HTML_CONTENT = """
                 source.connect(processor);
                 processor.connect(audioContext.destination);
                 
-                // Connect WebSocket
-                const wsUrl = `ws://${window.location.host}/ws/audio`;
+                // Connect WebSocket (use wss:// for HTTPS, ws:// for HTTP)
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}/ws/audio`;
                 log(`Connecting to ${wsUrl}...`, 'info');
                 
                 ws = new WebSocket(wsUrl);
