@@ -750,6 +750,8 @@ def create_app(agent: TeluguVoiceAgent, config: AgentConfig):
                         
         except WebSocketDisconnect:
             logger.info("🔌 Client disconnected")
+    
+    return app
 
 
 def main():
