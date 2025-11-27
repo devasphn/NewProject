@@ -20,11 +20,38 @@ import numpy as np
 import time
 import logging
 import asyncio
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Import TrainConfig from training script for checkpoint compatibility
+sys.path.insert(0, str(Path(__file__).parent))
+try:
+    from train_s2s_conversation import TrainConfig
+except ImportError:
+    # Define it here if import fails
+    @dataclass
+    class TrainConfig:
+        data_dir: str = "data/telugu_conversations"
+        codec_path: str = "best_codec.pt"
+        hidden_dim: int = 512
+        num_heads: int = 8
+        num_encoder_layers: int = 6
+        num_decoder_layers: int = 6
+        num_quantizers: int = 8
+        vocab_size: int = 1024
+        max_seq_len: int = 2048
+        batch_size: int = 4
+        learning_rate: float = 1e-4
+        epochs: int = 50
+        warmup_steps: int = 500
+        gradient_clip: float = 1.0
+        save_every: int = 5
+        output_dir: str = "checkpoints/s2s_conversation"
+        device: str = "cuda"
 
 
 @dataclass
