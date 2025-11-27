@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    whisper_model: str = "large-v3"  # For faster-whisper
+    whisper_model: str = "medium"  # medium is good balance of speed/quality
     llm_model: str = "Qwen/Qwen2.5-3B-Instruct"  # Smaller = faster
     tts_voice: str = "te-IN-ShrutiNeural"
     sample_rate: int = 16000
@@ -28,20 +28,20 @@ class AgentConfig:
 
 
 class FasterWhisperASR:
-    """Faster-Whisper ASR - 3-4x faster than HuggingFace"""
+    """Faster-Whisper ASR - Using CPU to avoid cuDNN issues"""
     
-    def __init__(self, model_size: str = "large-v3", device: str = "cuda"):
-        logger.info(f"📥 Loading faster-whisper: {model_size}")
+    def __init__(self, model_size: str = "large-v3", device: str = "cpu"):
+        logger.info(f"📥 Loading faster-whisper: {model_size} (CPU mode)")
         
         from faster_whisper import WhisperModel
         
-        # Use float16 on GPU for speed
+        # Use CPU with int8 for speed (avoids cuDNN issues)
         self.model = WhisperModel(
             model_size,
-            device=device,
-            compute_type="float16"
+            device="cpu",
+            compute_type="int8"  # Fast on CPU
         )
-        logger.info("✅ Faster-Whisper ready")
+        logger.info("✅ Faster-Whisper ready (CPU)")
     
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> dict:
         """Transcribe with Telugu language forced"""
@@ -372,7 +372,7 @@ HTML_PAGE = '''
 <body>
     <div class="container">
         <h1>🎤 Telugu Voice Agent</h1>
-        <p class="subtitle">faster-whisper + Qwen2.5-3B + Edge TTS | Target: &lt;1500ms</p>
+        <p class="subtitle">faster-whisper (medium) + Qwen2.5-3B + Edge TTS | Target: &lt;2000ms</p>
         
         <div class="card">
             <div class="mic-area">
@@ -577,7 +577,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8010)
-    parser.add_argument("--whisper", default="large-v3")
+    parser.add_argument("--whisper", default="medium")  # medium for CPU speed
     parser.add_argument("--llm", default="Qwen/Qwen2.5-3B-Instruct")
     args = parser.parse_args()
     
