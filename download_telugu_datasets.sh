@@ -6,6 +6,12 @@ echo "========================================"
 echo "📥 Downloading Telugu Audio Datasets"
 echo "========================================"
 
+# Install unzip if not available
+if ! command -v unzip &> /dev/null; then
+    echo "📦 Installing unzip..."
+    apt-get update -qq && apt-get install -y -qq unzip
+fi
+
 mkdir -p data/telugu_raw
 
 # 1. OpenSLR SLR66 - Telugu Multi-speaker (10 hours)

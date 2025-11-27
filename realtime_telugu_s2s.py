@@ -191,7 +191,7 @@ class TeluguS2SAgent:
         logger.info(f"📥 Loading S2S: {config.s2s_path}")
         self.s2s = ConversationS2S(config).to(self.device)
         
-        checkpoint = torch.load(config.s2s_path, map_location=self.device)
+        checkpoint = torch.load(config.s2s_path, map_location=self.device, weights_only=False)
         if 'model_state' in checkpoint:
             self.s2s.load_state_dict(checkpoint['model_state'])
         else:
