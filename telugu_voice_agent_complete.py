@@ -208,63 +208,79 @@ Be friendly and conversational."""
         }
 
 
-class IndicTTS:
-    """Indic Parler-TTS for Telugu speech synthesis"""
+class EdgeTTS:
+    """Microsoft Edge TTS for Telugu speech synthesis (no GPU needed, fast!)"""
     
-    def __init__(
-        self,
-        model_name: str = "ai4bharat/indic-parler-tts",
-        device: str = "cuda"
-    ):
-        self.device = device
-        logger.info(f"📥 Loading TTS: {model_name}")
-        
-        from parler_tts import ParlerTTSForConditionalGeneration
-        from transformers import AutoTokenizer
-        
-        self.model = ParlerTTSForConditionalGeneration.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16
-        ).to(device)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model.eval()
-        
-        self.sample_rate = 22050  # Indic Parler-TTS output rate
-        
+    def __init__(self, voice: str = "te-IN-ShrutiNeural"):
+        """
+        Telugu voices available:
+        - te-IN-ShrutiNeural (Female) - Recommended
+        - te-IN-MohanNeural (Male)
+        """
+        self.voice = voice
+        self.sample_rate = 24000
+        logger.info(f"📥 Initializing Edge TTS with voice: {voice}")
         logger.info("✅ TTS ready")
     
-    @torch.no_grad()
     def synthesize(
         self,
         text: str,
-        speaker: str = "Meera",
-        emotion: str = "neutral"
+        speaker: str = None,
+        emotion: str = None
     ) -> dict:
         """Synthesize Telugu speech from text"""
+        import asyncio
+        import edge_tts
+        import io
+        import soundfile as sf
+        
         start_time = time.perf_counter()
         
-        # Create description for the voice
-        description = f"{speaker} speaks in a clear, {emotion} tone with natural Telugu pronunciation. The recording is high quality with no background noise."
+        async def _synthesize():
+            communicate = edge_tts.Communicate(text, self.voice)
+            audio_data = b""
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_data += chunk["data"]
+            return audio_data
         
-        # Tokenize
-        input_ids = self.tokenizer(description, return_tensors="pt").input_ids.to(self.device)
-        prompt_input_ids = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
+        # Run async function
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         
-        # Generate audio
-        generation = self.model.generate(
-            input_ids=input_ids,
-            prompt_input_ids=prompt_input_ids
-        )
+        audio_bytes = loop.run_until_complete(_synthesize())
         
-        audio = generation.cpu().numpy().squeeze()
+        # Convert MP3 to numpy array
+        from pydub import AudioSegment
+        audio_segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
+        audio_segment = audio_segment.set_frame_rate(24000).set_channels(1)
+        
+        # Convert to numpy
+        samples = np.array(audio_segment.get_array_of_samples(), dtype=np.float32)
+        samples = samples / 32768.0  # Normalize to [-1, 1]
         
         latency = (time.perf_counter() - start_time) * 1000
         
         return {
-            "audio": audio,
-            "sample_rate": self.sample_rate,
+            "audio": samples,
+            "sample_rate": 24000,
             "latency_ms": latency
         }
+
+
+class IndicTTS:
+    """Wrapper that uses EdgeTTS for Telugu (avoids dependency conflicts)"""
+    
+    def __init__(self, model_name: str = None, device: str = None):
+        # Use Edge TTS instead - no dependency conflicts!
+        self.tts = EdgeTTS(voice="te-IN-ShrutiNeural")
+        self.sample_rate = 24000
+    
+    def synthesize(self, text: str, speaker: str = "Meera", emotion: str = "neutral") -> dict:
+        return self.tts.synthesize(text, speaker, emotion)
 
 
 class TeluguVoiceAgent:
@@ -598,9 +614,9 @@ def create_server(agent: TeluguVoiceAgent):
         }
         
         async function playAudio(arrayBuffer) {
-            const audioContext = new AudioContext({ sampleRate: 22050 });
+            const audioContext = new AudioContext({ sampleRate: 24000 });
             const float32Data = new Float32Array(arrayBuffer);
-            const audioBuffer = audioContext.createBuffer(1, float32Data.length, 22050);
+            const audioBuffer = audioContext.createBuffer(1, float32Data.length, 24000);
             audioBuffer.getChannelData(0).set(float32Data);
             const source = audioContext.createBufferSource();
             source.buffer = audioBuffer;
