@@ -28,11 +28,12 @@ class AgentConfig:
     llm_model: str = "Qwen/Qwen2.5-7B-Instruct"
     tts_voice: str = "te-IN-ShrutiNeural"
     sample_rate: int = 16000
-    chunk_duration_ms: int = 500  # Process every 500ms
+    chunk_size: int = 4096  # Must match browser (power of 2)
+    chunk_duration_ms: int = 256  # 4096/16000*1000 = 256ms
     silence_threshold: float = 0.01  # VAD threshold
     min_speech_duration: float = 0.5  # Min 0.5s speech to process
     max_speech_duration: float = 10.0  # Max 10s per utterance
-    silence_duration: float = 1.0  # 1s silence = end of utterance
+    silence_duration: float = 0.8  # 0.8s silence = end of utterance
 
 
 class WhisperASR:
@@ -489,8 +490,7 @@ HTML_PAGE = '''
     
     <script>
         const SAMPLE_RATE = 16000;
-        const CHUNK_MS = 500;
-        const CHUNK_SIZE = SAMPLE_RATE * CHUNK_MS / 1000;
+        const CHUNK_SIZE = 4096;  // Must be power of 2: 256, 512, 1024, 2048, 4096, 8192, 16384
         
         let ws = null;
         let audioContext = null;
