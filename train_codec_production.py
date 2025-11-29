@@ -22,6 +22,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast as new_autocast  # For newer PyTorch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torchaudio
 from pathlib import Path
@@ -75,7 +76,7 @@ class TrainConfig:
     sample_every: int = 500
     
     # Hardware
-    num_workers: int = 4
+    num_workers: int = 8  # Increased for faster data loading
     use_fp16: bool = True
     
     def __init__(self, **kwargs):
@@ -320,9 +321,12 @@ class ProductionCodecTrainer:
             
             if self.scaler:
                 self.scaler.scale(disc_loss).backward()
+                self.scaler.unscale_(self.disc_optimizer)
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 1.0)
                 self.scaler.step(self.disc_optimizer)
             else:
                 disc_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 1.0)
                 self.disc_optimizer.step()
             
             losses['disc_loss'] = disc_loss.item()
@@ -357,10 +361,13 @@ class ProductionCodecTrainer:
         
         if self.scaler:
             self.scaler.scale(gen_loss).backward()
+            self.scaler.unscale_(self.gen_optimizer)
+            torch.nn.utils.clip_grad_norm_(self.codec.parameters(), 1.0)
             self.scaler.step(self.gen_optimizer)
-            self.scaler.update()
+            self.scaler.update()  # Update scaler once per training step
         else:
             gen_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.codec.parameters(), 1.0)
             self.gen_optimizer.step()
         
         # Record losses
