@@ -76,7 +76,7 @@ class TrainConfig:
     sample_every: int = 500
     
     # Hardware
-    num_workers: int = 8  # Increased for faster data loading
+    num_workers: int = 12  # Optimal for 16 vCPU (leave some for system)
     use_fp16: bool = True
     
     def __init__(self, **kwargs):
