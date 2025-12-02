@@ -90,14 +90,23 @@ class TrainConfig:
 
 class MultilingualAudioDataset(Dataset):
     """
-    Dataset for multilingual audio training
+    Dataset for multilingual audio training with augmentation
     Supports: Telugu, Hindi, English, Tamil, and more
+    
+    Augmentations for robustness:
+    - Speed perturbation (0.9-1.1x)
+    - Volume perturbation (0.7-1.3x)  
+    - Background noise injection
+    - Pitch shifting (optional)
     """
     def __init__(self, data_dirs: list, sample_rate: int = 16000, 
-                 segment_length: int = 32000, normalize_db: float = -16.0):
+                 segment_length: int = 32000, normalize_db: float = -16.0,
+                 augment: bool = True, augment_prob: float = 0.3):
         self.sample_rate = sample_rate
         self.segment_length = segment_length
         self.normalize_db = normalize_db
+        self.augment = augment
+        self.augment_prob = augment_prob
         
         # Collect all audio files from all directories
         self.audio_files = []
@@ -146,6 +155,10 @@ class MultilingualAudioDataset(Dataset):
                 padding = self.segment_length - waveform.shape[1]
                 waveform = F.pad(waveform, (0, padding))
             
+            # Apply augmentation (only during training)
+            if self.augment:
+                waveform = self._apply_augmentation(waveform)
+            
             # RMS Normalization
             waveform = self._normalize_rms(waveform)
             
@@ -166,6 +179,60 @@ class MultilingualAudioDataset(Dataset):
             target_rms = 10 ** (self.normalize_db / 20)
             audio = audio * (target_rms / rms)
         return audio
+    
+    def _apply_augmentation(self, waveform: torch.Tensor) -> torch.Tensor:
+        """
+        Apply random augmentations for robustness training.
+        These help the codec generalize to:
+        - Different speaking speeds
+        - Various volume levels
+        - Noisy environments
+        """
+        import random
+        
+        # Speed perturbation (0.9-1.1x)
+        if random.random() < self.augment_prob:
+            speed_factor = 0.9 + random.random() * 0.2  # 0.9-1.1
+            # Simple speed change by resampling
+            orig_length = waveform.shape[-1]
+            new_length = int(orig_length / speed_factor)
+            waveform = F.interpolate(
+                waveform.unsqueeze(0), 
+                size=new_length, 
+                mode='linear', 
+                align_corners=False
+            ).squeeze(0)
+            # Adjust back to original length
+            if waveform.shape[-1] > self.segment_length:
+                waveform = waveform[:, :self.segment_length]
+            elif waveform.shape[-1] < self.segment_length:
+                waveform = F.pad(waveform, (0, self.segment_length - waveform.shape[-1]))
+        
+        # Volume perturbation (0.7-1.3x)
+        if random.random() < self.augment_prob:
+            gain = 0.7 + random.random() * 0.6  # 0.7-1.3
+            waveform = waveform * gain
+        
+        # Background noise injection
+        if random.random() < self.augment_prob:
+            noise_level = random.random() * 0.01  # 0-0.01 noise level
+            noise = torch.randn_like(waveform) * noise_level
+            waveform = waveform + noise
+        
+        # Random reverb simulation (simple convolution with decaying impulse)
+        if random.random() < self.augment_prob * 0.5:  # Less frequent
+            decay = 0.3 + random.random() * 0.4  # 0.3-0.7 decay
+            ir_length = int(self.sample_rate * 0.05)  # 50ms impulse response
+            impulse = torch.zeros(1, 1, ir_length)
+            impulse[0, 0, 0] = 1.0
+            for i in range(1, ir_length):
+                impulse[0, 0, i] = impulse[0, 0, i-1] * decay * (0.5 + random.random() * 0.5)
+            # Apply convolution
+            waveform_padded = F.pad(waveform.unsqueeze(0), (ir_length-1, 0))
+            waveform = F.conv1d(waveform_padded, impulse).squeeze(0)
+            waveform = waveform[:, :self.segment_length]
+        
+        return waveform
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
