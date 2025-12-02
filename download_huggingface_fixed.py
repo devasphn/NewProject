@@ -29,10 +29,12 @@ BASE_DIR = Path("/workspace/data")
 BATCH_SIZE = 100  # Process this many samples at a time
 MAX_WORKERS = 4
 
-# Languages to download
+# Languages to download - USE FULL NAMES (not language codes!)
+# Kathbath configs: 'hindi', 'telugu' (lowercase)
+# IndicVoices configs: 'hindi', 'telugu' (lowercase)
 LANGUAGES = {
-    'hindi': 'hi',
-    'telugu': 'te'
+    'hindi': 'hindi',    # NOT 'hi'
+    'telugu': 'telugu'   # NOT 'te'
 }
 
 
@@ -206,16 +208,12 @@ def download_indicvoices_streaming(lang_name: str, lang_code: str):
     print(f"\n📥 Downloading IndicVoices {lang_name} (streaming mode)...")
     
     try:
-        # Map language names
-        iv_lang_map = {
-            'hindi': 'Hindi',
-            'telugu': 'Telugu'
-        }
-        iv_lang = iv_lang_map.get(lang_name, lang_name.title())
+        # IndicVoices uses LOWERCASE language names: 'hindi', 'telugu'
+        # NOT title case like 'Hindi' or 'Telugu'
         
         dataset = load_dataset(
             "ai4bharat/IndicVoices",
-            iv_lang,
+            lang_code,  # Already lowercase: 'hindi' or 'telugu'
             split="train",
             streaming=True,
             trust_remote_code=False
@@ -254,6 +252,7 @@ def download_indicvoices_streaming(lang_name: str, lang_code: str):
 def download_commonvoice(lang_name: str, lang_code: str):
     """
     Download Common Voice. Note: Needs to accept license on HF first.
+    Common Voice uses ISO language codes: 'hi' for Hindi, 'te' for Telugu
     """
     from datasets import load_dataset
     
@@ -267,47 +266,60 @@ def download_commonvoice(lang_name: str, lang_code: str):
     
     print(f"\n📥 Downloading Common Voice {lang_name}...")
     
-    try:
-        # Common Voice uses language codes differently
-        cv_lang_map = {
-            'hi': 'hi',
-            'te': 'te'
-        }
-        
-        dataset = load_dataset(
-            "mozilla-foundation/common_voice_16_1",
-            lang_code,
-            split="train",
-            streaming=True,
-            trust_remote_code=False
-        )
-        
-        saved_count = len(existing_files)
-        
-        for i, sample in enumerate(tqdm(dataset, desc=f"CommonVoice {lang_name}")):
-            try:
-                audio = sample['audio']
-                audio_array = np.array(audio['array'], dtype=np.float32)
-                sample_rate = audio['sampling_rate']
-                
-                output_path = output_dir / f"cv_{lang_code}_{saved_count:06d}.wav"
-                sf.write(output_path, audio_array, sample_rate)
-                saved_count += 1
-                
-                if saved_count % 1000 == 0:
-                    gc.collect()
+    # Common Voice uses ISO language codes
+    cv_lang_map = {
+        'hindi': 'hi',
+        'telugu': 'te'
+    }
+    cv_code = cv_lang_map.get(lang_code, lang_code)
+    
+    # Try multiple dataset versions
+    dataset_names = [
+        "mozilla-foundation/common_voice_17_0",
+        "mozilla-foundation/common_voice_16_1",
+        "mozilla-foundation/common_voice_16_0",
+        "mozilla-foundation/common_voice_13_0",
+    ]
+    
+    for ds_name in dataset_names:
+        try:
+            print(f"  Trying {ds_name}...")
+            dataset = load_dataset(
+                ds_name,
+                cv_code,
+                split="train",
+                streaming=True,
+                trust_remote_code=False
+            )
+            
+            saved_count = len(existing_files)
+            
+            for i, sample in enumerate(tqdm(dataset, desc=f"CommonVoice {lang_name}")):
+                try:
+                    audio = sample['audio']
+                    audio_array = np.array(audio['array'], dtype=np.float32)
+                    sample_rate = audio['sampling_rate']
                     
-            except Exception as e:
-                continue
-        
-        print(f"  ✅ Saved {saved_count} files")
-        return saved_count
-        
-    except Exception as e:
-        print(f"  ❌ Common Voice failed: {e}")
-        print("     You may need to accept the license at:")
-        print("     https://huggingface.co/datasets/mozilla-foundation/common_voice_16_1")
-        return 0
+                    output_path = output_dir / f"cv_{cv_code}_{saved_count:06d}.wav"
+                    sf.write(output_path, audio_array, sample_rate)
+                    saved_count += 1
+                    
+                    if saved_count % 1000 == 0:
+                        gc.collect()
+                        
+                except Exception as e:
+                    continue
+            
+            print(f"  ✅ Saved {saved_count} files from {ds_name}")
+            return saved_count
+            
+        except Exception as e:
+            print(f"  ⚠️ {ds_name} failed: {str(e)[:50]}...")
+            continue
+    
+    print(f"  ❌ All Common Voice versions failed")
+    print("     Accept license at: https://huggingface.co/datasets/mozilla-foundation/common_voice_17_0")
+    return 0
 
 
 def count_audio_files(directory: Path) -> int:
