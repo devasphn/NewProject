@@ -17,6 +17,13 @@
 
 import os
 import sys
+import warnings
+
+# Suppress torchaudio deprecation warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='torchaudio')
+warnings.filterwarnings('ignore', category=FutureWarning)
+os.environ['TORCHAUDIO_USE_BACKEND_DISPATCHER'] = '0'
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -302,7 +309,9 @@ class ProductionCodecTrainer:
             shuffle=True,
             num_workers=config.num_workers,
             pin_memory=True,
-            drop_last=True
+            drop_last=True,
+            persistent_workers=True if config.num_workers > 0 else False,
+            prefetch_factor=4 if config.num_workers > 0 else None,
         )
         
         # Setup checkpointing
