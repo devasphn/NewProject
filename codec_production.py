@@ -45,10 +45,11 @@ class CodecConfig:
     num_quantizers: int = 8
     codebook_sizes: tuple = (2048, 1024, 1024, 1024, 1024, 1024, 1024, 1024)  # First layer larger for semantics
     
-    # Frame rate - LOWER for faster S2S (50Hz instead of 200Hz)
-    # Downsampling: 2*2*2*2*5 = 80 -> 16000/80 = 200Hz (original)
-    # New: 2*4*4*4*5 = 320 -> 16000/320 = 50Hz (4x fewer tokens!)
-    downsample_rates: tuple = (2, 4, 4, 4, 5)  # Total: 320x -> 50Hz frame rate
+    # Frame rate - LOWER for faster S2S (25Hz instead of 75Hz like EnCodec)
+    # Downsampling: 2*4*4*4*5 = 640 -> 16000/640 = 25Hz
+    # This gives 40ms frames = <50ms latency for real-time streaming
+    # Also 3x fewer tokens than EnCodec (75Hz) = faster S2S generation
+    downsample_rates: tuple = (2, 4, 4, 4, 5)  # Total: 640x -> 25Hz frame rate
     
     # Transformer layers in encoder/decoder
     num_transformer_layers: int = 4
