@@ -714,20 +714,20 @@ class ProductionCodec(nn.Module):
             target_spec = torch.stft(
                 target.squeeze(1), n_fft=n_fft, hop_length=hop,
                 window=window, return_complex=True
-            ).abs()
+            ).abs().clamp(min=1e-7)
             
             pred_spec = torch.stft(
                 pred.squeeze(1), n_fft=n_fft, hop_length=hop,
                 window=window, return_complex=True
-            ).abs()
+            ).abs().clamp(min=1e-7)
             
             # L1 on magnitude
             loss = loss + F.l1_loss(pred_spec, target_spec)
             
-            # L1 on log magnitude
+            # L1 on log magnitude (safe log)
             loss = loss + F.l1_loss(
-                torch.log(pred_spec + 1e-7),
-                torch.log(target_spec + 1e-7)
+                torch.log(pred_spec),
+                torch.log(target_spec)
             )
         
         return loss / 6.0
@@ -741,21 +741,21 @@ class ProductionCodec(nn.Module):
         target_spec = torch.stft(
             target.squeeze(1), n_fft=n_fft, hop_length=hop,
             window=window, return_complex=True
-        ).abs()
+        ).abs().clamp(min=1e-7)
         
         pred_spec = torch.stft(
             pred.squeeze(1), n_fft=n_fft, hop_length=hop,
             window=window, return_complex=True
-        ).abs()
+        ).abs().clamp(min=1e-7)
         
         # Apply mel filterbank
-        target_mel = torch.matmul(self.mel_fb.unsqueeze(0), target_spec)
-        pred_mel = torch.matmul(self.mel_fb.unsqueeze(0), pred_spec)
+        target_mel = torch.matmul(self.mel_fb.unsqueeze(0), target_spec).clamp(min=1e-7)
+        pred_mel = torch.matmul(self.mel_fb.unsqueeze(0), pred_spec).clamp(min=1e-7)
         
-        # L1 on log mel
+        # L1 on log mel (safe log)
         loss = F.l1_loss(
-            torch.log(pred_mel + 1e-7),
-            torch.log(target_mel + 1e-7)
+            torch.log(pred_mel),
+            torch.log(target_mel)
         )
         
         return loss

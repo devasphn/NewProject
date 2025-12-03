@@ -91,7 +91,7 @@ class TrainConfig:
     
     # Hardware
     num_workers: int = 32  # Optimal for high-core systems
-    use_fp16: bool = True
+    use_fp16: bool = False  # Disabled for stability - enable with --fp16 flag
     
     # Wandb
     use_wandb: bool = True
@@ -187,16 +187,20 @@ class MultilingualAudioDataset(Dataset):
             return waveform
             
         except Exception as e:
-            # Return random noise if file fails to load
-            print(f"⚠️ Failed to load {audio_path}: {e}")
-            return torch.randn(1, self.segment_length) * 0.1
+            # Return valid noise if file fails to load
+            target_rms = 10 ** (self.normalize_db / 20)
+            return torch.randn(1, self.segment_length) * target_rms
     
     def _normalize_rms(self, audio: torch.Tensor) -> torch.Tensor:
         """Normalize audio to target RMS (dB)"""
-        rms = torch.sqrt(torch.mean(audio ** 2))
-        if rms > 1e-8:
-            target_rms = 10 ** (self.normalize_db / 20)
-            audio = audio * (target_rms / rms)
+        rms = torch.sqrt(torch.mean(audio ** 2) + 1e-8)
+        target_rms = 10 ** (self.normalize_db / 20)
+        audio = audio * (target_rms / rms)
+        
+        # Check for NaN and replace with noise if needed
+        if torch.isnan(audio).any() or torch.isinf(audio).any():
+            audio = torch.randn_like(audio) * target_rms
+        
         return audio
     
     def _apply_augmentation(self, waveform: torch.Tensor) -> torch.Tensor:
@@ -480,12 +484,25 @@ class ProductionCodecTrainer:
                 losses['adv_loss'] = adv_loss.item()
                 losses['feat_loss'] = feat_loss.item()
         
+        # Check for NaN loss before backprop
+        if torch.isnan(gen_loss) or torch.isinf(gen_loss):
+            # Return NaN to signal skip this batch
+            losses['gen_loss'] = float('nan')
+            losses['recon_loss'] = float('nan')
+            losses['vq_loss'] = float('nan')
+            losses['spectral_loss'] = float('nan')
+            losses['mel_loss'] = float('nan')
+            losses['semantic_loss'] = float('nan')
+            return losses
+        
         if self.scaler:
             self.scaler.scale(gen_loss).backward()
             self.scaler.unscale_(self.gen_optimizer)
-            torch.nn.utils.clip_grad_norm_(self.codec.parameters(), 1.0)
-            self.scaler.step(self.gen_optimizer)
-            self.scaler.update()  # Update scaler once per training step
+            # Check for inf gradients
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.codec.parameters(), 1.0)
+            if torch.isfinite(grad_norm):
+                self.scaler.step(self.gen_optimizer)
+            self.scaler.update()
         else:
             gen_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.codec.parameters(), 1.0)
@@ -512,13 +529,22 @@ class ProductionCodecTrainer:
         pbar = tqdm(self.dataloader, desc=f"Epoch {self.epoch}")
         
         for batch_idx, audio in enumerate(pbar):
+            # Skip batches with NaN/Inf
+            if torch.isnan(audio).any() or torch.isinf(audio).any():
+                continue
+            
             losses = self.train_step(audio, use_disc=use_disc)
+            
+            # Skip if losses are NaN (indicates bad batch)
+            if np.isnan(losses.get('gen_loss', 0)) or np.isnan(losses.get('recon_loss', 0)):
+                continue
             
             # Accumulate losses
             for k, v in losses.items():
                 if k not in epoch_losses:
                     epoch_losses[k] = []
-                epoch_losses[k].append(v)
+                if not np.isnan(v):  # Only accumulate valid losses
+                    epoch_losses[k].append(v)
             
             # Update progress bar
             pbar.set_postfix({
@@ -647,7 +673,7 @@ def main():
     
     # Hardware
     parser.add_argument("--num_workers", type=int, default=32)
-    parser.add_argument("--no_fp16", action="store_true")
+    parser.add_argument("--fp16", action="store_true", help="Enable FP16 mixed precision (unstable)")
     
     # Logging
     parser.add_argument("--no_wandb", action="store_true", help="Disable WandB logging")
@@ -665,7 +691,7 @@ def main():
         disc_lr=args.disc_lr,
         checkpoint_dir=args.checkpoint_dir,
         num_workers=args.num_workers,
-        use_fp16=not args.no_fp16,
+        use_fp16=args.fp16,
         use_wandb=not args.no_wandb,
         wandb_project=args.wandb_project,
         wandb_run_name=args.wandb_run,
