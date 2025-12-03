@@ -286,7 +286,7 @@ class ProductionCodecTrainer:
         self.disc_scheduler = CosineAnnealingLR(self.disc_optimizer, T_max=config.num_epochs)
         
         # Mixed precision
-        self.scaler = GradScaler() if config.use_fp16 else None
+        self.scaler = GradScaler('cuda') if config.use_fp16 else None
         
         # Create dataset
         print("\n📁 Loading dataset...")
@@ -450,7 +450,7 @@ class ProductionCodecTrainer:
         # ═══════════════════════════════════════════════════════════════════
         self.gen_optimizer.zero_grad()
         
-        with autocast(enabled=self.config.use_fp16):
+        with autocast('cuda', enabled=self.config.use_fp16):
             # Forward pass
             output = self.codec(audio)
             fake_audio = output['audio']
