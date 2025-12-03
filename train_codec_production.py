@@ -21,8 +21,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torch.cuda.amp import autocast, GradScaler
-from torch.amp import autocast as new_autocast  # For newer PyTorch
+from torch.amp import autocast, GradScaler
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torchaudio
 from pathlib import Path
@@ -36,6 +35,14 @@ import numpy as np
 # Local imports
 from codec_production import ProductionCodec, CodecConfig
 from discriminator_dac import DACDiscriminator, discriminator_loss, generator_adversarial_loss, feature_matching_loss
+
+# Optional: Weights & Biases
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    print("⚠️ wandb not installed. Run: pip install wandb")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -76,8 +83,13 @@ class TrainConfig:
     sample_every: int = 500
     
     # Hardware
-    num_workers: int = 12  # Optimal for 16 vCPU (leave some for system)
+    num_workers: int = 32  # Optimal for high-core systems
     use_fp16: bool = True
+    
+    # Wandb
+    use_wandb: bool = True
+    wandb_project: str = "codec-production"
+    wandb_run_name: str = None
     
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -304,9 +316,19 @@ class ProductionCodecTrainer:
         
         # Logging
         self.setup_logging()
+        
+        # Print GPU info
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1e9
+            print(f"🎮 GPU: {gpu_name}")
+            print(f"💾 VRAM: {gpu_mem:.1f} GB")
+            print(f"📊 Batch size: {config.batch_size}")
+            print(f"👷 Workers: {config.num_workers}")
     
     def setup_logging(self):
-        """Setup TensorBoard logging"""
+        """Setup TensorBoard and WandB logging"""
+        # TensorBoard
         try:
             from torch.utils.tensorboard import SummaryWriter
             log_dir = self.checkpoint_dir / "logs" / datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -315,6 +337,29 @@ class ProductionCodecTrainer:
         except ImportError:
             self.writer = None
             print("⚠️ TensorBoard not available")
+        
+        # Weights & Biases
+        self.use_wandb = False
+        if WANDB_AVAILABLE and self.config.use_wandb:
+            try:
+                run_name = self.config.wandb_run_name or f"codec_{datetime.now().strftime('%Y%m%d_%H%M')}"
+                wandb.init(
+                    project=self.config.wandb_project,
+                    name=run_name,
+                    config={
+                        'batch_size': self.config.batch_size,
+                        'num_epochs': self.config.num_epochs,
+                        'gen_lr': self.config.gen_lr,
+                        'disc_lr': self.config.disc_lr,
+                        'num_quantizers': self.codec_config.num_quantizers,
+                        'hidden_dim': self.codec_config.hidden_dim,
+                        'dataset_size': len(self.dataset),
+                    }
+                )
+                self.use_wandb = True
+                print(f"📈 WandB logging enabled: {run_name}")
+            except Exception as e:
+                print(f"⚠️ WandB init failed: {e}")
     
     def save_checkpoint(self, name: str = None, is_best: bool = False):
         """Save training checkpoint"""
@@ -373,7 +418,7 @@ class ProductionCodecTrainer:
         if use_disc:
             self.disc_optimizer.zero_grad()
             
-            with autocast(enabled=self.config.use_fp16):
+            with autocast('cuda', enabled=self.config.use_fp16):
                 # Generate fake audio
                 with torch.no_grad():
                     output = self.codec(audio)
@@ -474,9 +519,12 @@ class ProductionCodecTrainer:
             })
             
             # Logging
-            if self.global_step % self.config.log_every == 0 and self.writer:
-                for k, v in losses.items():
-                    self.writer.add_scalar(f"train/{k}", v, self.global_step)
+            if self.global_step % self.config.log_every == 0:
+                if self.writer:
+                    for k, v in losses.items():
+                        self.writer.add_scalar(f"train/{k}", v, self.global_step)
+                if self.use_wandb:
+                    wandb.log({f"train/{k}": v for k, v in losses.items()}, step=self.global_step)
             
             self.global_step += 1
         
@@ -548,13 +596,22 @@ class ProductionCodecTrainer:
                 self.best_loss = val_loss
                 self.save_checkpoint("best_codec", is_best=True)
             
-            # Log to tensorboard
+            # Log to tensorboard & wandb
             if self.writer:
                 self.writer.add_scalar("epoch/val_loss", val_loss, epoch)
                 self.writer.add_scalar("epoch/lr", self.gen_scheduler.get_last_lr()[0], epoch)
+            if self.use_wandb:
+                wandb.log({
+                    "epoch/val_loss": val_loss,
+                    "epoch/lr": self.gen_scheduler.get_last_lr()[0],
+                    "epoch": epoch
+                })
         
         print("\n✅ Training complete!")
         self.save_checkpoint("final_codec")
+        
+        if self.use_wandb:
+            wandb.finish()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -580,8 +637,13 @@ def main():
                        help="Path to checkpoint to resume from")
     
     # Hardware
-    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--num_workers", type=int, default=32)
     parser.add_argument("--no_fp16", action="store_true")
+    
+    # Logging
+    parser.add_argument("--no_wandb", action="store_true", help="Disable WandB logging")
+    parser.add_argument("--wandb_project", type=str, default="codec-production")
+    parser.add_argument("--wandb_run", type=str, default=None, help="WandB run name")
     
     args = parser.parse_args()
     
@@ -595,6 +657,9 @@ def main():
         checkpoint_dir=args.checkpoint_dir,
         num_workers=args.num_workers,
         use_fp16=not args.no_fp16,
+        use_wandb=not args.no_wandb,
+        wandb_project=args.wandb_project,
+        wandb_run_name=args.wandb_run,
     )
     
     # Create trainer
