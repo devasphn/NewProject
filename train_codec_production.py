@@ -68,18 +68,18 @@ class TrainConfig:
     num_epochs: int = 200
     gradient_accumulation: int = 2
     
-    # Optimization
+    # Optimization - TTUR (Two Time-scale Update Rule)
     gen_lr: float = 1e-4
-    disc_lr: float = 1e-4
+    disc_lr: float = 5e-5  # Discriminator learns slower = more stable GAN
     betas: tuple = (0.5, 0.9)
     weight_decay: float = 0.01
     
-    # Loss weights
-    adv_weight: float = 1.0
-    feat_weight: float = 10.0
+    # Loss weights - BALANCED for stable GAN training
+    adv_weight: float = 0.1  # Reduced from 1.0 - prevents gen loss explosion
+    feat_weight: float = 2.0  # Reduced from 10.0 - more stable training
     
     # GAN training
-    disc_start_epoch: int = 5  # Start discriminator after N epochs
+    disc_start_epoch: int = 10  # Start discriminator later for better codec foundation
     
     # Checkpointing
     checkpoint_dir: str = "checkpoints_production"
@@ -426,45 +426,12 @@ class ProductionCodecTrainer:
         losses = {}
         
         # ═══════════════════════════════════════════════════════════════════
-        # DISCRIMINATOR UPDATE
-        # ═══════════════════════════════════════════════════════════════════
-        if use_disc:
-            self.disc_optimizer.zero_grad()
-            
-            with autocast('cuda', enabled=self.config.use_fp16):
-                # Generate fake audio
-                with torch.no_grad():
-                    output = self.codec(audio)
-                    fake_audio = output['audio']
-                
-                # Discriminator forward
-                real_logits, real_features = self.discriminator(audio)
-                fake_logits, fake_features = self.discriminator(fake_audio.detach())
-                
-                # Discriminator loss
-                disc_loss, real_loss, fake_loss = discriminator_loss(real_logits, fake_logits)
-            
-            if self.scaler:
-                self.scaler.scale(disc_loss).backward()
-                self.scaler.unscale_(self.disc_optimizer)
-                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 1.0)
-                self.scaler.step(self.disc_optimizer)
-            else:
-                disc_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 1.0)
-                self.disc_optimizer.step()
-            
-            losses['disc_loss'] = disc_loss.item()
-            losses['disc_real'] = real_loss.item()
-            losses['disc_fake'] = fake_loss.item()
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # GENERATOR UPDATE
+        # GENERATOR UPDATE (runs first to get fresh audio)
         # ═══════════════════════════════════════════════════════════════════
         self.gen_optimizer.zero_grad()
         
         with autocast('cuda', enabled=self.config.use_fp16):
-            # Forward pass
+            # Forward pass - generate fake audio
             output = self.codec(audio)
             fake_audio = output['audio']
             
@@ -472,13 +439,16 @@ class ProductionCodecTrainer:
             gen_loss = output['loss']
             
             if use_disc:
-                # Adversarial loss
+                # Get discriminator outputs (cache real features)
+                with torch.no_grad():
+                    real_logits, real_features = self.discriminator(audio)
                 fake_logits, fake_features = self.discriminator(fake_audio)
-                real_logits, real_features = self.discriminator(audio)
                 
+                # Adversarial loss (generator wants discriminator to think fake is real)
                 adv_loss = generator_adversarial_loss(fake_logits)
                 feat_loss = feature_matching_loss(real_features, fake_features)
                 
+                # Scale down adversarial components
                 gen_loss = gen_loss + self.config.adv_weight * adv_loss + self.config.feat_weight * feat_loss
                 
                 losses['adv_loss'] = adv_loss.item()
@@ -515,6 +485,37 @@ class ProductionCodecTrainer:
         losses['spectral_loss'] = output['spectral_loss'].item()
         losses['mel_loss'] = output['mel_loss'].item()
         losses['semantic_loss'] = output['semantic_loss'].item()
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # DISCRIMINATOR UPDATE (after generator, using detached fake audio)
+        # ═══════════════════════════════════════════════════════════════════
+        if use_disc:
+            self.disc_optimizer.zero_grad()
+            
+            with autocast('cuda', enabled=self.config.use_fp16):
+                # Use detached fake audio (no gradient to generator)
+                fake_audio_detached = fake_audio.detach()
+                
+                # Discriminator forward
+                real_logits, _ = self.discriminator(audio)
+                fake_logits, _ = self.discriminator(fake_audio_detached)
+                
+                # Discriminator loss
+                disc_loss, real_loss, fake_loss = discriminator_loss(real_logits, fake_logits)
+            
+            if self.scaler:
+                self.scaler.scale(disc_loss).backward()
+                self.scaler.unscale_(self.disc_optimizer)
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.5)  # Tighter clipping
+                self.scaler.step(self.disc_optimizer)
+            else:
+                disc_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.5)  # Tighter clipping
+                self.disc_optimizer.step()
+            
+            losses['disc_loss'] = disc_loss.item()
+            losses['disc_real'] = real_loss.item()
+            losses['disc_fake'] = fake_loss.item()
         
         return losses
     
