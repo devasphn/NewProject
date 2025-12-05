@@ -75,11 +75,12 @@ class TrainConfig:
     weight_decay: float = 0.01
     
     # Loss weights - BALANCED for stable GAN training
-    adv_weight: float = 0.1  # Reduced from 1.0 - prevents gen loss explosion
-    feat_weight: float = 2.0  # Reduced from 10.0 - more stable training
+    adv_weight: float = 0.05  # Reduced from 1.0 - prevents gen loss explosion
+    feat_weight: float = 0.5   # Reduced from 10.0 - more stable training
     
     # GAN training
-    disc_start_epoch: int = 10  # Start discriminator later for better codec foundation
+    disc_start_epoch: int = 20  # Start discriminator later for better codec foundation
+    disc_update_interval: int = 2  # Update discriminator once every N steps
     
     # Checkpointing
     checkpoint_dir: str = "checkpoints_production"
@@ -489,13 +490,15 @@ class ProductionCodecTrainer:
         # ═══════════════════════════════════════════════════════════════════
         # DISCRIMINATOR UPDATE (after generator, using detached fake audio)
         # ═══════════════════════════════════════════════════════════════════
-        if use_disc:
+        run_disc_step = use_disc and (self.global_step % self.config.disc_update_interval == 0)
+        if run_disc_step:
             self.disc_optimizer.zero_grad()
             
-            with autocast('cuda', enabled=self.config.use_fp16):
-                # Use detached fake audio (no gradient to generator)
+            with torch.no_grad():
+                # Freeze generator params during disc step
                 fake_audio_detached = fake_audio.detach()
-                
+            
+            with autocast('cuda', enabled=self.config.use_fp16):
                 # Discriminator forward
                 real_logits, _ = self.discriminator(audio)
                 fake_logits, _ = self.discriminator(fake_audio_detached)
@@ -506,11 +509,11 @@ class ProductionCodecTrainer:
             if self.scaler:
                 self.scaler.scale(disc_loss).backward()
                 self.scaler.unscale_(self.disc_optimizer)
-                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.5)  # Tighter clipping
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.25)  # tighter clipping
                 self.scaler.step(self.disc_optimizer)
             else:
                 disc_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.5)  # Tighter clipping
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.25)
                 self.disc_optimizer.step()
             
             losses['disc_loss'] = disc_loss.item()
